@@ -283,7 +283,7 @@ function renderFilterBar(host){
  let el=document.getElementById(host);if(!el)return;
  let teams=[...new Set(projects.map(p=>p.team))],people=[...new Set(items.map(t=>t.assignee))];
  el.innerHTML=`<div class="filterbar">
-  <input class="grow" id="fb_search" placeholder="Filter by keyword..." value="${esc(document.getElementById('fb_search')?.value||'')}" oninput="onFilterChange('fb_search')">
+  <input class="grow" id="fb_search" placeholder="Filter by keyword..." value="${esc(filterState.search||'')}" oninput="onFilterChange('fb_search')">
   ${fbSelect('fb_project','All projects',projects.map(p=>p.name),filterState.project)}
   ${fbSelect('fb_type','All types',['Project-Specific','Shared'],filterState.type)}
   ${fbSelect('fb_status','All status',['Backlog','Planned','In Progress','Under Review','Blocked','Completed','On Hold'],filterState.status)}
@@ -309,6 +309,7 @@ function onFilterChange(id){
  if(id=='fb_overdue')filterState.overdueOnly=v.checked;
  if(id=='fb_blocked')filterState.blockedOnly=v.checked;
  renderCurrentPage();
+ if(id=='fb_search'){let ni=document.getElementById('fb_search');if(ni){ni.focus();let p=ni.value.length;ni.setSelectionRange(p,p)}}
 }
 function clearFilters(){filterState={project:'All projects',type:'All types',status:'All status',priority:'All priority',assignee:'All people',team:'All teams',health:'All health',dateFrom:'',dateTo:'',tag:'',overdueOnly:false,blockedOnly:false,search:''};renderCurrentPage()}
 function getSavedFilters(){try{return JSON.parse(localStorage.getItem('pcc_saved_filters')||'[]')}catch(e){return[]}}

@@ -157,6 +157,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 'Mulish',-appl
 .gantt-bar{position:absolute;top:3px;height:20px;border-radius:6px;background:var(--obsidian);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;padding:0 8px;white-space:nowrap;overflow:hidden}
 .gantt-today{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--red)}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--n8);color:#fff;padding:12px 16px;border-radius:var(--radius-sm);font:500 13px 'Mulish',sans-serif;z-index:30;box-shadow:var(--shadow-4);display:flex;align-items:center;gap:8px}
+.ph-spinner{display:inline-block;animation:pcc-spin .8s linear infinite}
+@keyframes pcc-spin{to{transform:rotate(360deg)}}
 @media(max-width:1100px){.dash-grid{grid-template-columns:1fr}}
 @media(max-width:950px){.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.project{grid-template-columns:38px 1fr 90px}.project .progresscell,.project>.avatar{display:none}}
 @media(max-width:680px){.side{transform:translateX(-120%);z-index:10}.side.open{transform:none}.main{margin-left:0}.hamb{display:flex}.top{padding:0 14px}.search{width:100%;flex:1}.content{padding:20px 14px}.stats{gap:8px}.stat{padding:13px}.stat b{font-size:22px}.projectcards,.sharedcards{grid-template-columns:1fr}.head h1{font-size:22px}.column{min-width:82vw}.formrow{grid-template-columns:1fr}.top .btn{padding:0 12px}.top .btn .btn-label{display:none}.cal-grid{grid-template-columns:repeat(7,minmax(70px,1fr));overflow-x:auto}}
@@ -484,7 +486,7 @@ function renderPdBody(p,pt,tab,canManage){
   el.innerHTML=`<div class="filters" style="margin-bottom:12px"><button class="btn light sm" onclick="renderPdWorkBoard()"><i class="ph ph-kanban"></i> Board</button> <button class="btn light sm" onclick="renderPdWorkList()"><i class="ph ph-list-checks"></i> List</button> ${canManage?`<button class="btn sm" onclick="openQuickTask('${esc(p.name)}','Backlog')"><i class="ph ph-plus"></i> Add work item</button>`:''}</div><div id="pdWork"></div>`;
   renderPdWorkBoard();
  } else if(tab=='milestones'){
-  el.innerHTML=`<div class="panel" style="padding:6px 0">${p.milestones.map(m=>`<div class="event"><span class="avatar">${m.done?'<i class="ph-fill ph-check-circle"></i>':'<i class="ph-fill ph-diamond"></i>'}</span><div><b>${esc(m.name)}</b><small>Due ${fmtDate(m.due)}${new Date(m.due+'T00:00:00')<TODAY&&!m.done?' · OVERDUE':''}</small></div><label class="chk"><input type="checkbox" ${m.done?'checked':''} ${canManage?'':'disabled'} onchange="toggleMilestone('${p.id}','${m.id}')"> Done</label></div>`).join('')||'<div class="empty">No milestones yet.</div>'}</div>
+  el.innerHTML=`<div class="panel" style="padding:6px 0">${p.milestones.map(m=>`<div class="event"><span class="avatar">${m.done?'<i class="ph-fill ph-check-circle"></i>':'<i class="ph-fill ph-diamond"></i>'}</span><div>${canManage?`<b onclick="editMilestoneName('${p.id}','${m.id}')" style="cursor:pointer" title="Click to edit">${esc(m.name)}</b>`:`<b>${esc(m.name)}</b>`}<small>Due <span ${canManage?`onclick="editMilestoneDate('${p.id}','${m.id}')" style="cursor:pointer;text-decoration:underline dotted" title="Click to edit"`:''}>${fmtDate(m.due)}</span>${new Date(m.due+'T00:00:00')<TODAY&&!m.done?' · OVERDUE':''}</small></div><label class="chk"><input type="checkbox" ${m.done?'checked':''} ${canManage?'':'disabled'} onchange="toggleMilestone('${p.id}','${m.id}')"> Done</label>${canManage?`<button class="icon-action danger" onclick="removeMilestone('${p.id}','${m.id}')" title="Remove"><i class="ph ph-x"></i></button>`:''}</div>`).join('')||'<div class="empty">No milestones yet.</div>'}</div>
   ${canManage?`<div class="panel" style="padding:16px;margin-top:12px"><form class="form" onsubmit="addMilestone(event,'${p.id}')" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap"><label style="flex:1;min-width:180px">Milestone name<input name="name" required></label><label>Due date<input name="due" type="date" required></label><button class="btn sm"><i class="ph ph-plus"></i> Add milestone</button></form></div>`:''}`;
  } else if(tab=='risks'){
   let rows=risks.filter(r=>r.project==p.name);
@@ -653,9 +655,87 @@ function renderActivityLog(){
 }
 
 /* ---------- Users & access ---------- */
+function getProjectsApiUrl(){return localStorage.getItem('pcc_projects_api_url')||''}
+function saveProjectsApiUrl(silent){let url=(document.getElementById('projectsApiUrl')?.value||'').trim();localStorage.setItem('pcc_projects_api_url',url);if(!silent)toast(url?'Endpoint saved':'Endpoint cleared')}
+function mapApiProject(raw,i){
+ let name=raw.name||raw.title||raw.projectName||`Untitled project ${i+1}`;
+ let existing=projects.find(p=>p.name==name);
+ return {
+  id:existing?.id||raw.id||`PRJ-${String(100+i).padStart(3,'0')}`,
+  name,
+  prefix:existing?.prefix||raw.prefix||projectPrefix(name),
+  owner:raw.owner||raw.projectOwner||existing?.owner||'Unassigned',
+  team:raw.team||raw.department||existing?.team||'General',
+  category:raw.category||existing?.category||'General',
+  objective:raw.objective||raw.description||existing?.objective||'',
+  description:raw.description||raw.objective||existing?.description||'',
+  status:raw.status||existing?.status||'Active',
+  priority:raw.priority||existing?.priority||'Medium',
+  plannedStart:raw.plannedStart||raw.startDate||raw.start||existing?.plannedStart||iso(TODAY),
+  plannedEnd:raw.plannedEnd||raw.endDate||raw.dueDate||raw.end||existing?.plannedEnd||iso(TODAY),
+  actualStart:raw.actualStart||existing?.actualStart||'',
+  actualEnd:raw.actualEnd||existing?.actualEnd||'',
+  progress:Number(raw.progress??raw.percentComplete??existing?.progress??0),
+  health:raw.health||existing?.health||'On Track',
+  budget:Number(raw.budget??existing?.budget??0),
+  actualCost:Number(raw.actualCost??existing?.actualCost??0),
+  confidential:raw.confidential??existing?.confidential??false,
+  color:existing?.color||['#397dcc','#8a5bd8','#159b82','#dc6b43'][i%4],
+  milestones:existing?.milestones||[],
+  dependencies:existing?.dependencies||[],
+  links:existing?.links||[],
+  createdAt:existing?.createdAt||iso(TODAY),
+  updatedAt:iso(TODAY)
+ };
+}
+async function syncProjectsFromApi(){
+ let url=(document.getElementById('projectsApiUrl')?.value||'').trim();
+ if(!url)return toast('Enter a JSON API endpoint first');
+ saveProjectsApiUrl(true);
+ let btn=document.getElementById('syncApiBtn');if(btn){btn.disabled=true;btn.innerHTML='<i class="ph ph-spinner"></i> Syncing…'}
+ try{
+  let res=await fetch(url);
+  if(!res.ok)throw new Error(`HTTP ${res.status}`);
+  let data=await res.json();
+  let list=Array.isArray(data)?data:(Array.isArray(data?.projects)?data.projects:null);
+  if(!list)throw new Error('Expected a JSON array, or an object with a "projects" array');
+  let added=0,updated=0;
+  list.forEach((raw,i)=>{
+   let name=raw.name||raw.title||raw.projectName;
+   if(!name)return;
+   let existed=projects.some(p=>p.name==name);
+   let mapped=mapApiProject(raw,i);
+   if(existed){let idx=projects.findIndex(p=>p.name==name);projects[idx]=mapped;updated++}
+   else{projects.push(mapped);added++}
+  });
+  localStorage.setItem('pcc_projects_api_last_sync',new Date().toISOString());
+  logActivity(`Synced projects from API: ${added} added, ${updated} updated`,'Integrations');
+  toast(`Synced from API: ${added} added, ${updated} updated`);
+  render();
+ }catch(err){
+  toast('Sync failed: '+err.message);
+  logActivity(`Project API sync failed: ${err.message}`,'Integrations');
+ }
+ renderUsers();
+}
 function renderUsers(){
  let host=document.getElementById('access');
- host.innerHTML=`<div class="head"><div><p class="eyebrow">ADMINISTRATION</p><h1>Users & access</h1><p>Control who can view, comment on and edit project information.</p></div><button class="btn" id="inviteBtn" onclick="inviteUser()"><i class="ph ph-plus"></i> Invite user</button></div><div class="notice">You are the workspace Administrator. Use the role preview in the top bar to test what each user type can access. Confidential projects (<i class="ph-fill ph-lock-simple"></i>) are hidden from the Viewer preview.</div><div class="permission-grid"><article class="panel permission-card"><h3>Administrator</h3><p>Manage users, roles, workflows, confidential projects and every record.</p></article><article class="panel permission-card"><h3>Project Manager</h3><p>Create and manage assigned projects, work items, risks and approvals.</p></article><article class="panel permission-card"><h3>Contributor</h3><p>Update assigned features and tasks, progress, checklists and comments.</p></article><article class="panel permission-card"><h3>Viewer</h3><p>View permitted projects and add comments where allowed. No record editing.</p></article></div><div class="panel access-wrap"><table class="access-table"><thead><tr><th>User</th><th>Team</th><th>Role</th><th>Project access</th><th>Status</th></tr></thead><tbody id="userRows"></tbody></table></div>`;
+ let apiUrl=getProjectsApiUrl();
+ let lastSync=localStorage.getItem('pcc_projects_api_last_sync');
+ host.innerHTML=`<div class="head"><div><p class="eyebrow">ADMINISTRATION</p><h1>Users & access</h1><p>Control who can view, comment on and edit project information.</p></div><button class="btn" id="inviteBtn" onclick="inviteUser()"><i class="ph ph-plus"></i> Invite user</button></div><div class="notice">You are the workspace Administrator. Use the role preview in the top bar to test what each user type can access. Confidential projects (<i class="ph-fill ph-lock-simple"></i>) are hidden from the Viewer preview.</div><div class="permission-grid"><article class="panel permission-card"><h3>Administrator</h3><p>Manage users, roles, workflows, confidential projects and every record.</p></article><article class="panel permission-card"><h3>Project Manager</h3><p>Create and manage assigned projects, work items, risks and approvals.</p></article><article class="panel permission-card"><h3>Contributor</h3><p>Update assigned features and tasks, progress, checklists and comments.</p></article><article class="panel permission-card"><h3>Viewer</h3><p>View permitted projects and add comments where allowed. No record editing.</p></article></div>
+ <div class="panel" style="padding:18px;margin-bottom:16px">
+ <h3 style="margin:0 0 4px;font:700 16px/20px 'Mulish',sans-serif;color:var(--n9)">Integrations</h3>
+ <p style="margin:0 0 14px;font-size:12px;color:var(--n5)">Point this at a JSON endpoint that returns an array of projects (or <code>{"projects":[...]}</code>). Fields are matched loosely (name/title, owner, team, status, progress, budget, dates, ...) — anything missing falls back to sensible defaults. Matching by project name updates the existing project; new names are added.</p>
+ <div class="formrow" style="align-items:end">
+  <label>Projects API endpoint<input type="url" id="projectsApiUrl" placeholder="https://example.com/api/projects" value="${esc(apiUrl)}" onchange="saveProjectsApiUrl()"></label>
+  <div style="display:flex;gap:8px;padding-bottom:1px">
+   <button class="btn light" onclick="saveProjectsApiUrl()"><i class="ph ph-floppy-disk"></i> Save</button>
+   <button class="btn" id="syncApiBtn" onclick="syncProjectsFromApi()"><i class="ph ph-arrows-clockwise"></i> Sync now</button>
+  </div>
+ </div>
+ <p style="margin:10px 0 0;font-size:11px;color:var(--n5)">Last synced: ${lastSync?fmtDate(lastSync.slice(0,10))+' '+new Date(lastSync).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'Never — add projects manually until this is wired up.'}</p>
+ </div>
+ <div class="panel access-wrap"><table class="access-table"><thead><tr><th>User</th><th>Team</th><th>Role</th><th>Project access</th><th>Status</th></tr></thead><tbody id="userRows"></tbody></table></div>`;
  document.getElementById('userRows').innerHTML=users.map((u,i)=>`<tr><td><span class="avatar">${initials(u[0])}</span> &nbsp;<b>${esc(u[0])}</b>${u[0]==currentUser?' <span class="role-chip">YOU</span>':''}</td><td>${esc(u[1])}</td><td>${i==0?'<span class="role-chip">Administrator</span>':`<select ${currentRole!='Administrator'?'disabled':''} onchange="changeUserRole(${i},this.value)">${['Project Manager','Contributor','Viewer'].map(r=>`<option ${r==u[2]?'selected':''}>${r}</option>`)}</select>`}</td><td>${esc(u[3])}</td><td><span class="health ${u[4]=='Invited'?'planned':'on-track'}">${u[4]}</span>${currentRole=='Administrator'?` &nbsp;<button class="icon-action" onclick="editUser(${i})">Edit</button>${i?` <button class="icon-action danger" onclick="removeUser(${i})">Remove</button>`:''}`:''}</td></tr>`).join('');
 }
 function setAccessVisibility(){let accessNav=document.querySelector('.nav button[data-page="access"]');let isAdmin=currentRole=='Administrator';if(accessNav)accessNav.style.display=isAdmin?'':'none';if(!isAdmin&&document.getElementById('access')?.classList.contains('active'))goPage('portfolio')}
@@ -713,29 +793,38 @@ function openDetail(id){
  <div class="detailblock"><h3>Description</h3><p>${esc(t.description)||'No description provided.'}</p></div>
  <div class="detailblock"><h3>Dependencies & blockers</h3>
  <p class="sub" style="font-size:10.5px;color:var(--muted);margin:0 0 6px">Depends on</p>${t.dependencies.map(d=>`<span class="chip" onclick="openDetail('${d}')">${esc(items.find(x=>x.id==d)?.title||d)}</span>`).join('')||'<span class="chip plain">None</span>'}
- <p class="sub" style="font-size:10.5px;color:var(--muted);margin:10px 0 6px">Blockers</p>${t.blockers.map((b,i)=>`<span class="chip plain"><i class="ph-fill ph-warning-circle"></i> ${esc(b)}</span>`).join('')||'<span class="chip plain">None</span>'}
+ <p class="sub" style="font-size:10.5px;color:var(--muted);margin:10px 0 6px">Blockers</p>${t.blockers.map((b,i)=>edit?`<span class="chip plain"><i class="ph-fill ph-warning-circle"></i> <span onclick="editBlocker('${id}',${i})" style="cursor:pointer" title="Click to edit">${esc(b)}</span> <i class="ph ph-x" onclick="removeBlocker('${id}',${i})" style="cursor:pointer" title="Remove"></i></span>`:`<span class="chip plain"><i class="ph-fill ph-warning-circle"></i> ${esc(b)}</span>`).join('')||'<span class="chip plain">None</span>'}
  ${edit?`<div style="margin-top:8px"><input id="newBlocker" placeholder="Add a blocker..." style="width:100%;height:34px;border:1px solid #ddd;border-radius:7px;padding:0 8px" onkeydown="if(event.key=='Enter'){addBlocker('${id}',this.value);this.value=''}"></div>`:''}</div>
  <div class="detailblock"><h3>Tags</h3><div class="tags">${t.tags.map(x=>`<span>${esc(x)}</span>`).join('')||'None'}</div></div>
  <div class="detailblock"><h3>Effort</h3><p>Estimated ${t.estEffort}h · Actual ${t.actualEffort}h</p></div>
- <div class="detailblock"><h3>Checklist</h3>${t.subtasks.map((s,i)=>`<label class="check"><input type="checkbox" ${s.done?'checked':''} ${lock} onchange="toggleSubtask('${id}',${i})"> ${esc(s.text)}</label>`).join('')||'<p style="color:var(--muted);font-size:12px">No checklist items.</p>'}
+ <div class="detailblock"><h3>Checklist</h3>${t.subtasks.map((s,i)=>`<div class="check" style="justify-content:space-between"><span style="display:flex;align-items:center;gap:10px;min-width:0"><input type="checkbox" ${s.done?'checked':''} ${lock} onchange="toggleSubtask('${id}',${i})">${edit?`<span onclick="editSubtask('${id}',${i})" style="cursor:pointer" title="Click to edit">${esc(s.text)}</span>`:`<span>${esc(s.text)}</span>`}</span>${edit?`<i class="ph ph-x" onclick="removeSubtask('${id}',${i})" style="cursor:pointer;color:var(--n5)" title="Remove"></i>`:''}</div>`).join('')||'<p style="color:var(--muted);font-size:12px">No checklist items.</p>'}
  ${edit?`<input placeholder="Add checklist item and press Enter" style="width:100%;height:34px;border:1px solid #ddd;border-radius:7px;padding:0 8px;margin-top:6px" onkeydown="if(event.key=='Enter'){addSubtask('${id}',this.value);this.value=''}">`:''}</div>
- <div class="detailblock"><h3>Attachments & links</h3>${t.attachments.map(a=>`<span class="chip plain"><i class="ph ph-link"></i> ${esc(a.label)}</span>`).join('')||'<p style="color:var(--muted);font-size:12px">None linked.</p>'}
+ <div class="detailblock"><h3>Attachments & links</h3>${t.attachments.map((a,i)=>edit?`<span class="chip plain"><i class="ph ph-link"></i> <span onclick="editAttachment('${id}',${i})" style="cursor:pointer" title="Click to edit">${esc(a.label)}</span> <i class="ph ph-x" onclick="removeAttachment('${id}',${i})" style="cursor:pointer" title="Remove"></i></span>`:`<span class="chip plain"><i class="ph ph-link"></i> ${esc(a.label)}</span>`).join('')||'<p style="color:var(--muted);font-size:12px">None linked.</p>'}
  ${edit?`<input placeholder="Add a link label and press Enter" style="width:100%;height:34px;border:1px solid #ddd;border-radius:7px;padding:0 8px;margin-top:6px" onkeydown="if(event.key=='Enter'){addAttachment('${id}',this.value);this.value=''}">`:''}</div>
  <div class="detailblock"><h3>Discussion</h3>${t.comments.map(c=>`<div class="comment"><b>${esc(c.author)} · ${fmtShort(c.date)}</b><p>${linkify(c.text)}</p></div>${c.replies.map(r=>`<div class="comment reply"><b>${esc(r.author)} · ${fmtShort(r.date)}</b><p>${linkify(r.text)}</p></div>`).join('')}${edit?`<input placeholder="Reply..." style="width:100%;height:30px;border:1px solid #ddd;border-radius:7px;padding:0 8px;margin:4px 0 10px 22px;width:calc(100% - 22px)" onkeydown="if(event.key=='Enter'){addReply('${id}','${c.id}',this.value);this.value=''}">`:''}`).join('')}
  ${edit?`<input placeholder="Add a comment or @mention..." style="width:100%;height:36px;border:1px solid #ddd;border-radius:7px;padding:0 10px;margin-top:6px" onkeydown="if(event.key=='Enter'){addComment('${id}',this.value);this.value=''}">`:''}</div>
  <div class="detailblock"><h3>History</h3>${activity.filter(a=>a[2]==t.title).slice(0,8).map(a=>`<p style="font-size:12px;margin:4px 0">${esc(a[1])} · ${a[0]}</p>`).join('')||`<p style="font-size:12px;color:var(--muted)">Record created · ${fmtDate(t.createdAt)}</p>`}</div>
  </aside>`;
 }
-function addBlocker(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);t.blockers.push(text.trim());if(t.status!='Blocked'){t.status='Blocked'}logActivity(`Blocker added: ${text.trim()}`,t.title);render();openDetail(id)}
+function addBlocker(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.blockers.push(text.trim());if(t.status!='Blocked'){t.status='Blocked'}logActivity(`Blocker added: ${text.trim()}`,t.title);render();openDetail(id)}
+function removeBlocker(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.blockers.splice(i,1)[0];logActivity(`Blocker removed: ${removed}`,t.title);render();openDetail(id)}
+function editBlocker(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit blocker',t.blockers[i]);if(val==null||!val.trim())return;let before=t.blockers[i];t.blockers[i]=val.trim();logActivity(`Blocker updated: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
 function toggleSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.subtasks[i].done=!t.subtasks[i].done;logActivity(`Checklist item ${t.subtasks[i].done?'completed':'reopened'}: ${t.subtasks[i].text}`,t.title);render();openDetail(id)}
-function addSubtask(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);t.subtasks.push({text:text.trim(),done:false});render();openDetail(id)}
-function addAttachment(id,label){if(!label.trim())return;let t=items.find(x=>x.id==id);t.attachments.push({label:label.trim(),url:'#'});render();openDetail(id)}
+function addSubtask(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.subtasks.push({text:text.trim(),done:false});logActivity(`Checklist item added: ${text.trim()}`,t.title);render();openDetail(id)}
+function removeSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.subtasks.splice(i,1)[0];logActivity(`Checklist item removed: ${removed.text}`,t.title);render();openDetail(id)}
+function editSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit checklist item',t.subtasks[i].text);if(val==null||!val.trim())return;let before=t.subtasks[i].text;t.subtasks[i].text=val.trim();logActivity(`Checklist item renamed: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
+function addAttachment(id,label){if(!label.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.attachments.push({label:label.trim(),url:'#'});logActivity(`Attachment added: ${label.trim()}`,t.title);render();openDetail(id)}
+function removeAttachment(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.attachments.splice(i,1)[0];logActivity(`Attachment removed: ${removed.label}`,t.title);render();openDetail(id)}
+function editAttachment(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit link label',t.attachments[i].label);if(val==null||!val.trim())return;let before=t.attachments[i].label;t.attachments[i].label=val.trim();logActivity(`Attachment renamed: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
 function addComment(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);t.comments.push({id:uid('C'),author:currentUser,date:iso(TODAY),text:text.trim(),replies:[]});logActivity('You added a comment',t.title);let mentions=text.match(/@(\w+)/g);if(mentions)toast(`Notified ${mentions.join(', ')}`);render();openDetail(id)}
 function addReply(id,commentId,text){if(!text.trim())return;let t=items.find(x=>x.id==id);let c=t.comments.find(x=>x.id==commentId);c.replies.push({author:currentUser,date:iso(TODAY),text:text.trim()});render();openDetail(id)}
 
 /* ---------- CRUD: milestones / risks / decisions / changes ---------- */
 function toggleMilestone(pid,mid){let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);m.done=!m.done;logActivity(`Milestone "${m.name}" marked ${m.done?'done':'pending'}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
 function addMilestone(e,pid){e.preventDefault();let f=new FormData(e.target);let p=projects.find(x=>x.id==pid);p.milestones.push({id:uid('M'),name:f.get('name'),due:f.get('due'),done:false});logActivity(`Milestone "${f.get('name')}" added`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function removeMilestone(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let idx=p.milestones.findIndex(x=>x.id==mid);if(idx<0)return;let removed=p.milestones.splice(idx,1)[0];logActivity(`Milestone removed: ${removed.name}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function editMilestoneName(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit milestone name',m.name);if(val==null||!val.trim())return;let before=m.name;m.name=val.trim();logActivity(`Milestone renamed: "${before}" → "${val.trim()}"`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function editMilestoneDate(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit due date (YYYY-MM-DD)',m.due);if(val==null)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(val.trim()))return toast('Enter a date as YYYY-MM-DD');let before=m.due;m.due=val.trim();logActivity(`Milestone "${m.name}" due date changed: ${fmtShort(before)} → ${fmtShort(val.trim())}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
 function addRisk(e,pname){e.preventDefault();let f=new FormData(e.target);risks.unshift({id:uid('RSK'),project:pname,title:f.get('title'),severity:f.get('severity'),status:'Open',owner:f.get('owner'),date:iso(TODAY),notes:''});logActivity(`Risk logged: ${f.get('title')}`,pname);window.__pdTab='risks';renderWorkspace()}
 function updateRiskStatus(id,status){let r=risks.find(x=>x.id==id);r.status=status;logActivity(`Risk "${r.title}" set to ${status}`,r.project);window.__pdTab='risks';renderWorkspace()}
 function addDecision(e,pname){e.preventDefault();let f=new FormData(e.target);decisions.unshift({id:uid('DEC'),project:pname,title:f.get('title'),decision:f.get('decision'),date:iso(TODAY),owner:currentUser});logActivity(`Decision logged: ${f.get('title')}`,pname);window.__pdTab='decisions';renderWorkspace()}

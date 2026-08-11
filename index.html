@@ -7,6 +7,11 @@
 :root{--obsidian:#2B2B2C;--n9:#080808;--n8:#171717;--n7:#222222;--n6:#292929;--n5:#5a5a5a;--n4:#bdbdbd;--n3:#d8d8d8;--n2:#f0f0f0;--n1:#ffffff;--canvas:#FCFAF5;--canvas-card:#FAF7F2;--fire:#FF5825;--wood:#FF7A90;--earth:#00C26E;--water:#1473E6;--gold:#FFA425;--purple:#9F56FF;--turquoise:#00D9D9;--fire-bg:#FFEEE9;--wood-bg:#FFF2F4;--earth-bg:#E6F9F1;--water-bg:#E8F1FD;--gold-bg:#FFF6E9;--purple-bg:#F5EDFF;--red:#FD3343;--green:#00C26E;--radius-sm:12px;--radius-md:16px;--radius-lg:20px;--radius-pill:999px;--shadow-1:0 1px 2px rgba(189,189,189,.45);--shadow-2:0 2px 8px rgba(189,189,189,.42);--shadow-3:0 8px 24px rgba(189,189,189,.40);--shadow-4:0 16px 48px rgba(189,189,189,.44);--shadow-focus:0 0 0 3px rgba(20,115,230,.28);--ink:var(--n9);--muted:var(--n5);--line:var(--n3);--bg:var(--canvas);--amber:var(--gold)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 'Mulish',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.auth-gate{position:fixed;inset:0;background:var(--canvas);display:flex;align-items:center;justify-content:center;z-index:40;padding:20px}
+.auth-card{width:min(380px,100%);background:var(--n1);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-2);padding:32px}
+.auth-card h1{font:800 24px/30px 'Mulish',sans-serif;margin:0 0 4px;color:var(--n9)}
+.auth-error{background:rgba(253,51,67,.08);color:#c4354e;border:1px solid rgba(253,51,67,.3);border-radius:var(--radius-sm);padding:10px 12px;font-size:12.5px;margin-bottom:14px}
+.auth-note{background:var(--water-bg);color:#0d5bc4;border-radius:var(--radius-sm);padding:10px 12px;font-size:12.5px;margin-bottom:14px}
 .side{position:fixed;inset:16px auto 16px 16px;width:240px;background:var(--n1);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-1);padding:20px 14px;display:flex;flex-direction:column;transition:width .22s cubic-bezier(.2,.6,.2,1)}
 .side.collapsed{width:72px}
 .side.collapsed .brand div,.side.collapsed .nav button span,.side.collapsed .profile div{display:none}
@@ -177,6 +182,20 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 'Mulish',-appl
 @media(max-width:900px){.permission-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.permission-grid{grid-template-columns:1fr}.role-preview{max-width:120px}.access-table{min-width:700px}.access-wrap{overflow:auto}}
 </style></head><body>
+<div id="authGate" class="auth-gate"><div class="auth-card">
+ <div class="logo" style="margin:0 0 18px">P</div>
+ <h1 id="authTitle">Sign in</h1>
+ <p id="authSubtitle" style="color:var(--n5);font-size:13px;margin:0 0 20px">Use your Project Command Center account.</p>
+ <div id="authError" class="auth-error" style="display:none"></div>
+ <form id="authForm" class="form" onsubmit="handleAuthSubmit(event)">
+  <label id="authNameField" style="display:none">Full name<input id="authName" autocomplete="name"></label>
+  <label>Email<input id="authEmail" type="email" required autocomplete="email"></label>
+  <label>Password<input id="authPassword" type="password" required autocomplete="current-password" minlength="6"></label>
+  <button class="btn" id="authSubmitBtn" style="width:100%;justify-content:center;margin-top:16px">Sign in</button>
+ </form>
+ <p style="text-align:center;font-size:12.5px;margin-top:16px;color:var(--n5)"><span id="authSwitchLabel">Don't have an account?</span> <a href="#" onclick="toggleAuthMode();return false" style="color:var(--water);font-weight:700;text-decoration:none" id="authSwitchLink">Create one</a></p>
+</div></div>
+<div id="appShell" style="display:none">
 <aside class="side" id="side"><button class="collapse-toggle" onclick="toggleSidebar()" title="Collapse sidebar"><i class="ph ph-caret-left" id="collapseIcon"></i></button><div class="brand"><div class="logo">P</div><div><b>Projects</b><small>Command center</small></div></div><nav class="nav" id="nav">
 <button data-page="portfolio" class="active"><i class="ph-fill ph-house"></i><span>Portfolio</span></button>
 <button data-page="dashboard"><i class="ph-fill ph-chart-bar"></i><span>Dashboard</span></button>
@@ -189,12 +208,83 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 'Mulish',-appl
 <button data-page="shared"><i class="ph-fill ph-share-network"></i><span>Shared features</span></button>
 <button data-page="activity"><i class="ph-fill ph-clock-counter-clockwise"></i><span>Activity log</span></button>
 <button data-page="access"><i class="ph-fill ph-gear-six"></i><span>Users & access</span></button>
-</nav><div class="profile"><span class="avatar">KQ</span><div><b>Karen Quah</b><small id="profileRole">Administrator</small></div></div></aside>
+</nav><div class="profile"><span class="avatar" id="profileAvatar">KQ</span><div><b id="profileName">Karen Quah</b><small id="profileRole">Administrator</small></div><button class="icon-action" id="signOutBtn" onclick="handleSignOut()" title="Sign out" style="margin-left:auto"><i class="ph ph-sign-out"></i></button></div></aside>
 <main class="main" id="main"><header class="top"><button class="hamb btn light" onclick="side.classList.toggle('open')"><i class="ph ph-list"></i></button><input class="search" id="search" placeholder="Search projects, work items, people..." oninput="onGlobalSearch()"><span class="spacer"></span><span class="today-chip" id="todayChip"></span><select class="role-preview" id="rolePreview" onchange="previewRole(this.value)" title="Preview interface as role"><option>Administrator</option><option>Project Manager</option><option>Contributor</option><option>Viewer</option></select><button class="btn" id="addWorkBtn" onclick="openAdd()"><i class="ph ph-plus"></i><span class="btn-label">Add work</span></button></header>
 <div class="content" id="searchResultsHost"></div>
 </main>
+</div>
 <div class="veil" id="veil" onclick="closeOverlay()"></div><div id="overlay"></div><div id="toastHost"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+const SUPABASE_URL='https://ajilwnmjqkeqzmjevdfc.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFqaWx3bm1qcWtlcXptamV2ZGZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NTQ4NjksImV4cCI6MjEwMjAzMDg2OX0.Idq8fPEn56PUqdO0gQKOvRDdpgvbuUfBhUt_c3OL3P8';
+let sb=null;
+try{if(window.supabase?.createClient)sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY)}catch(e){console.error('Supabase client init failed:',e)}
+let authMode='signin',authUser=null,authProfile=null;
+
+function setAuthError(msg){let el=document.getElementById('authError');if(!msg){el.style.display='none';el.textContent='';return}el.style.display='block';el.textContent=msg}
+function toggleAuthMode(){
+ authMode=authMode=='signin'?'signup':'signin';
+ setAuthError('');
+ document.getElementById('authTitle').textContent=authMode=='signin'?'Sign in':'Create account';
+ document.getElementById('authSubtitle').textContent=authMode=='signin'?'Use your Project Command Center account.':'New accounts start as a Viewer — an Administrator can promote you afterwards.';
+ document.getElementById('authNameField').style.display=authMode=='signup'?'block':'none';
+ document.getElementById('authName').required=authMode=='signup';
+ document.getElementById('authSubmitBtn').textContent=authMode=='signin'?'Sign in':'Create account';
+ document.getElementById('authSwitchLabel').textContent=authMode=='signin'?"Don't have an account?":'Already have an account?';
+ document.getElementById('authSwitchLink').textContent=authMode=='signin'?'Create one':'Sign in';
+}
+async function handleAuthSubmit(e){
+ e.preventDefault();setAuthError('');
+ if(!sb)return setAuthError("Couldn't reach the authentication service. Check your connection and reload the page.");
+ let email=document.getElementById('authEmail').value.trim(),password=document.getElementById('authPassword').value;
+ let btn=document.getElementById('authSubmitBtn');btn.disabled=true;let originalLabel=btn.textContent;btn.textContent='Please wait…';
+ try{
+  if(authMode=='signin'){
+   let{error}=await sb.auth.signInWithPassword({email,password});
+   if(error)throw error;
+   await onAuthReady();
+  }else{
+   let fullName=document.getElementById('authName').value.trim();
+   let{data,error}=await sb.auth.signUp({email,password,options:{data:{full_name:fullName}}});
+   if(error)throw error;
+   if(data.session){await onAuthReady()}
+   else{setAuthError('');document.getElementById('authForm').style.display='none';document.getElementById('authSubtitle').innerHTML='<span class="auth-note" style="display:block">Check your email to confirm your account, then come back and sign in.</span>'}
+  }
+ }catch(err){setAuthError(err.message||'Something went wrong. Please try again.')}
+ btn.disabled=false;btn.textContent=originalLabel;
+}
+async function onAuthReady(){
+ if(!sb)return;
+ let{data:{user}}=await sb.auth.getUser();
+ if(!user)return;
+ authUser=user;
+ let{data:profile}=await sb.from('profiles').select('*').eq('id',user.id).single();
+ authProfile=profile;
+ currentUser=profile?.full_name||user.email;
+ currentRole=profile?.role||'Viewer';
+ document.getElementById('profileAvatar').textContent=initials(currentUser);
+ document.getElementById('profileName').textContent=currentUser;
+ document.getElementById('profileRole').textContent=currentRole;
+ document.getElementById('rolePreview').style.display=currentRole=='Administrator'?'':'none';
+ document.getElementById('rolePreview').value=currentRole;
+ document.getElementById('authGate').style.display='none';
+ document.getElementById('appShell').style.display='';
+ setAccessVisibility();render();
+}
+async function handleSignOut(){if(!sb)return location.reload();await sb.auth.signOut();location.reload()}
+async function checkAuthOnLoad(){
+ try{
+  if(!sb)throw new Error('Supabase client unavailable');
+  let timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('timed out')),8000));
+  let{data:{session}}=await Promise.race([sb.auth.getSession(),timeout]);
+  if(session){await onAuthReady();return}
+ }catch(err){console.error('Auth check failed:',err);setAuthError("Couldn't reach the authentication service. Check your connection and reload the page.")}
+ document.getElementById('authGate').style.display='flex';
+ document.getElementById('appShell').style.display='none';
+}
+if(sb)sb.auth.onAuthStateChange((event)=>{if(event=='SIGNED_OUT'){document.getElementById('authGate').style.display='flex';document.getElementById('appShell').style.display='none'}});
+
 const TODAY=new Date('2026-08-05T09:00:00');
 function iso(d){return d instanceof Date? d.toISOString().slice(0,10): d}
 function fmtDate(s){if(!s)return'Not set';let d=new Date(s+'T00:00:00');if(isNaN(d))return s;return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
@@ -722,7 +812,7 @@ function renderUsers(){
  let host=document.getElementById('access');
  let apiUrl=getProjectsApiUrl();
  let lastSync=localStorage.getItem('pcc_projects_api_last_sync');
- host.innerHTML=`<div class="head"><div><p class="eyebrow">ADMINISTRATION</p><h1>Users & access</h1><p>Control who can view, comment on and edit project information.</p></div><button class="btn" id="inviteBtn" onclick="inviteUser()"><i class="ph ph-plus"></i> Invite user</button></div><div class="notice">You are the workspace Administrator. Use the role preview in the top bar to test what each user type can access. Confidential projects (<i class="ph-fill ph-lock-simple"></i>) are hidden from the Viewer preview.</div><div class="permission-grid"><article class="panel permission-card"><h3>Administrator</h3><p>Manage users, roles, workflows, confidential projects and every record.</p></article><article class="panel permission-card"><h3>Project Manager</h3><p>Create and manage assigned projects, work items, risks and approvals.</p></article><article class="panel permission-card"><h3>Contributor</h3><p>Update assigned features and tasks, progress, checklists and comments.</p></article><article class="panel permission-card"><h3>Viewer</h3><p>View permitted projects and add comments where allowed. No record editing.</p></article></div>
+ host.innerHTML=`<div class="head"><div><p class="eyebrow">ADMINISTRATION</p><h1>Users & access</h1><p>Control who can view, comment on and edit project information.</p></div><button class="btn" id="inviteBtn" onclick="inviteUser()"><i class="ph ph-plus"></i> Invite user</button></div><div class="notice">These are real signed-in accounts (Supabase Auth). Use the role preview in the top bar to test what each user type can access. Confidential projects (<i class="ph-fill ph-lock-simple"></i>) are hidden from the Viewer preview.</div><div class="permission-grid"><article class="panel permission-card"><h3>Administrator</h3><p>Manage users, roles, workflows, confidential projects and every record.</p></article><article class="panel permission-card"><h3>Project Manager</h3><p>Create and manage assigned projects, work items, risks and approvals.</p></article><article class="panel permission-card"><h3>Contributor</h3><p>Update assigned features and tasks, progress, checklists and comments.</p></article><article class="panel permission-card"><h3>Viewer</h3><p>View permitted projects and add comments where allowed. No record editing.</p></article></div>
  <div class="panel" style="padding:18px;margin-bottom:16px">
  <h3 style="margin:0 0 4px;font:700 16px/20px 'Mulish',sans-serif;color:var(--n9)">Integrations</h3>
  <p style="margin:0 0 14px;font-size:12px;color:var(--n5)">Point this at a JSON endpoint that returns an array of projects (or <code>{"projects":[...]}</code>). Fields are matched loosely (name/title, owner, team, status, progress, budget, dates, ...) — anything missing falls back to sensible defaults. Matching by project name updates the existing project; new names are added.</p>
@@ -735,8 +825,8 @@ function renderUsers(){
  </div>
  <p style="margin:10px 0 0;font-size:11px;color:var(--n5)">Last synced: ${lastSync?fmtDate(lastSync.slice(0,10))+' '+new Date(lastSync).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'Never — add projects manually until this is wired up.'}</p>
  </div>
- <div class="panel access-wrap"><table class="access-table"><thead><tr><th>User</th><th>Team</th><th>Role</th><th>Project access</th><th>Status</th></tr></thead><tbody id="userRows"></tbody></table></div>`;
- document.getElementById('userRows').innerHTML=users.map((u,i)=>`<tr><td><span class="avatar">${initials(u[0])}</span> &nbsp;<b>${esc(u[0])}</b>${u[0]==currentUser?' <span class="role-chip">YOU</span>':''}</td><td>${esc(u[1])}</td><td>${i==0?'<span class="role-chip">Administrator</span>':`<select ${currentRole!='Administrator'?'disabled':''} onchange="changeUserRole(${i},this.value)">${['Project Manager','Contributor','Viewer'].map(r=>`<option ${r==u[2]?'selected':''}>${r}</option>`)}</select>`}</td><td>${esc(u[3])}</td><td><span class="health ${u[4]=='Invited'?'planned':'on-track'}">${u[4]}</span>${currentRole=='Administrator'?` &nbsp;<button class="icon-action" onclick="editUser(${i})">Edit</button>${i?` <button class="icon-action danger" onclick="removeUser(${i})">Remove</button>`:''}`:''}</td></tr>`).join('');
+ <div class="panel access-wrap"><table class="access-table"><thead><tr><th>User</th><th>Team</th><th>Role</th><th>Project access</th><th>Status</th></tr></thead><tbody id="userRows"><tr><td colspan="5" class="empty">Loading accounts…</td></tr></tbody></table></div>`;
+ loadRealUsersTable();
 }
 function setAccessVisibility(){let accessNav=document.querySelector('.nav button[data-page="access"]');let isAdmin=currentRole=='Administrator';if(accessNav)accessNav.style.display=isAdmin?'':'none';if(!isAdmin&&document.getElementById('access')?.classList.contains('active'))goPage('portfolio')}
 function previewRole(role){currentRole=role;profileRole.textContent=role;addWorkBtn.classList.toggle('locked',!['Administrator','Project Manager'].includes(role));setAccessVisibility();render()}
@@ -861,21 +951,42 @@ function confirmRemoveProject(id){
  logActivity(`Karen removed project ${p.name}`,'Projects');closeOverlay();render();
 }
 
-/* ---------- CRUD: users ---------- */
+/* ---------- CRUD: users (real accounts via Supabase Auth) ---------- */
 function inviteUser(){
  if(currentRole!='Administrator')return denied();
  veil.classList.add('open');
- overlay.innerHTML=`<div class="modal"><button class="close" onclick="closeOverlay()"><i class="ph ph-x"></i></button><h2>Invite user</h2><form class="form" onsubmit="addUser(event)"><label>Full name<input name="name" required autofocus placeholder="Full name"></label><label>Email<input name="email" type="email" required placeholder="name@company.com"></label><div class="formrow"><label>Team<input name="team" required placeholder="Team or department"></label><label>Role<select name="role"><option>Project Manager</option><option>Contributor</option><option>Viewer</option></select></label></div><label>Project access<select name="access"><option>All assigned projects</option>${projects.map(p=>`<option>${esc(p.name)}</option>`)}</select></label><div class="actions"><button type="button" class="btn light" onclick="closeOverlay()">Cancel</button><button class="btn">Send invitation</button></div></form></div>`;
+ overlay.innerHTML=`<div class="modal"><button class="close" onclick="closeOverlay()"><i class="ph ph-x"></i></button><h2>Invite a teammate</h2><p style="color:var(--n5);font-size:13px;line-height:1.6">There's no automated email invite yet. Share this page's link with them and have them create an account from the sign-in screen. New accounts start as <b>Viewer</b> — once they've signed up, promote their role in the table below.</p><div class="actions"><button class="btn" onclick="closeOverlay()">Got it</button></div></div>`;
 }
-function addUser(e){e.preventDefault();let f=new FormData(e.target);users.push([f.get('name'),f.get('team'),f.get('role'),f.get('access'),'Invited']);logActivity(`Karen invited ${f.get('name')} as ${f.get('role')}`,'Users & access');closeOverlay();render()}
-function changeUserRole(i,role){if(currentRole!='Administrator')return denied();users[i][2]=role;logActivity(`Karen changed ${users[i][0]}'s role to ${role}`,'Users & access');render()}
-function editUser(i){if(currentRole!='Administrator')return denied();let u=users[i];veil.classList.add('open');overlay.innerHTML=`<div class="modal"><button class="close" onclick="closeOverlay()"><i class="ph ph-x"></i></button><h2>Edit user</h2><form class="form" onsubmit="saveUser(event,${i})"><label>Full name<input name="name" required value="${esc(u[0])}"></label><label>Team<input name="team" required value="${esc(u[1])}"></label><label>Project access<input name="access" required value="${esc(u[3])}"></label><div class="actions"><button type="button" class="btn light" onclick="closeOverlay()">Cancel</button><button class="btn">Save changes</button></div></form></div>`}
-function saveUser(e,i){e.preventDefault();let f=new FormData(e.target),old=users[i][0];users[i][0]=f.get('name');users[i][1]=f.get('team');users[i][3]=f.get('access');logActivity(`Karen updated user ${old}`,'Users & access');closeOverlay();render()}
-function removeUser(i){if(currentRole!='Administrator')return denied();let u=users[i];if(!u||i==0)return;veil.classList.add('open');overlay.innerHTML=`<div class="modal"><button class="close" onclick="closeOverlay()"><i class="ph ph-x"></i></button><p class="eyebrow">REMOVE USER</p><h2>Remove ${esc(u[0])}?</h2><p style="color:#747b88;line-height:1.55">This user will immediately lose access to the workspace. Their existing activity history will be retained.</p><div class="actions"><button class="btn light" onclick="closeOverlay()">Cancel</button><button class="btn danger" onclick="confirmRemoveUser(${i})">Remove user</button></div></div>`}
-function confirmRemoveUser(i){let u=users[i];if(!u||i==0)return closeOverlay();users.splice(i,1);logActivity(`Karen removed ${u[0]}`,'Users & access');closeOverlay();render()}
+async function loadRealUsersTable(){
+ let host=document.getElementById('userRows');if(!host)return;
+ if(!sb){host.innerHTML='<tr><td colspan="5" class="empty">Authentication service unavailable — check your connection and reload.</td></tr>';return}
+ let{data:profiles,error}=await sb.from('profiles').select('*').order('created_at',{ascending:true});
+ if(error){host.innerHTML=`<tr><td colspan="5" class="empty">Couldn't load accounts: ${esc(error.message)}</td></tr>`;return}
+ host.innerHTML=(profiles||[]).map(p=>`<tr><td><span class="avatar">${initials(p.full_name||p.id)}</span> &nbsp;<b>${esc(p.full_name||'(no name set)')}</b>${p.id==authUser?.id?' <span class="role-chip">YOU</span>':''}</td><td>${esc(p.team||'—')}</td><td>${currentRole=='Administrator'?`<select onchange="changeProfileRole('${p.id}',this.value)">${['Administrator','Project Manager','Contributor','Viewer'].map(r=>`<option ${r==p.role?'selected':''}>${r}</option>`)}</select>`:`<span class="role-chip">${esc(p.role)}</span>`}</td><td>—</td><td><span class="health on-track">Active</span>${currentRole=='Administrator'?` &nbsp;<button class="icon-action" onclick="editProfileName('${p.id}')">Edit</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">No accounts yet.</td></tr>';
+}
+async function changeProfileRole(id,role){
+ if(currentRole!='Administrator')return denied();
+ let{error}=await sb.from('profiles').update({role}).eq('id',id);
+ if(error)return toast('Failed to update role: '+error.message);
+ logActivity(`Changed a teammate's role to ${role}`,'Users & access');toast('Role updated');loadRealUsersTable();
+}
+async function editProfileName(id){
+ if(currentRole!='Administrator'&&id!=authUser?.id)return denied();
+ let{data:p}=await sb.from('profiles').select('*').eq('id',id).single();
+ if(!p)return;
+ veil.classList.add('open');
+ overlay.innerHTML=`<div class="modal"><button class="close" onclick="closeOverlay()"><i class="ph ph-x"></i></button><h2>Edit account</h2><form class="form" onsubmit="saveProfileName(event,'${id}')"><label>Full name<input name="name" required value="${esc(p.full_name||'')}"></label><label>Team<input name="team" value="${esc(p.team||'')}"></label><div class="actions"><button type="button" class="btn light" onclick="closeOverlay()">Cancel</button><button class="btn">Save changes</button></div></form></div>`;
+}
+async function saveProfileName(e,id){
+ e.preventDefault();let f=new FormData(e.target);
+ let{error}=await sb.from('profiles').update({full_name:f.get('name'),team:f.get('team')}).eq('id',id);
+ if(error)return toast('Failed to save: '+error.message);
+ if(id==authUser?.id){currentUser=f.get('name');document.getElementById('profileName').textContent=currentUser;document.getElementById('profileAvatar').textContent=initials(currentUser)}
+ logActivity('Updated an account','Users & access');closeOverlay();loadRealUsersTable();
+}
 
 function closeOverlay(){veil.classList.remove('open');overlay.innerHTML=''}
 function render(){syncProgress();setAccessVisibility();renderCurrentPage()}
-buildPages();setAccessVisibility();render();
+buildPages();checkAuthOnLoad();
 </script>
 </body></html>

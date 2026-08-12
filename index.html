@@ -311,8 +311,19 @@ let changeRequests=[];
 
 let activity=[];
 function logActivity(text,context){
- activity.unshift(['Just now',text,context]);
- if(sb)sb.from('activity_log').insert({time_label:'Just now',text,context}).then(({error})=>{if(error)console.error('Failed to log activity:',error)});
+ activity.unshift([new Date().toISOString(),text,context]);
+ if(sb)sb.from('activity_log').insert({text,context}).then(({error})=>{if(error)console.error('Failed to log activity:',error)});
+}
+function fmtActivityTime(iso){
+ if(!iso)return'';
+ let d=new Date(iso);if(isNaN(d))return'';
+ let diff=Math.round((Date.now()-d.getTime())/1000);
+ if(diff<5)return'Just now';
+ if(diff<60)return`${diff}s ago`;
+ if(diff<3600)return`${Math.round(diff/60)}m ago`;
+ if(diff<86400)return`${Math.round(diff/3600)}h ago`;
+ if(diff<604800)return`${Math.round(diff/86400)}d ago`;
+ return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 }
 
 /* ---------- Supabase persistence ---------- */
@@ -340,7 +351,7 @@ async function loadAllData(){
   risks.length=0;(rRes.data||[]).forEach(r=>risks.push({id:r.id,project:r.project,title:r.title,severity:r.severity,status:r.status,owner:r.owner,date:r.date,notes:r.notes}));
   decisions.length=0;(dRes.data||[]).forEach(r=>decisions.push({id:r.id,project:r.project,title:r.title,decision:r.decision,date:r.date,owner:r.owner}));
   changeRequests.length=0;(cRes.data||[]).forEach(r=>changeRequests.push({id:r.id,project:r.project,title:r.title,status:r.status,requestedBy:r.requested_by,date:r.date,impact:r.impact}));
-  activity.length=0;(aRes.data||[]).forEach(r=>activity.push([r.time_label,r.text,r.context]));
+  activity.length=0;(aRes.data||[]).forEach(r=>activity.push([r.created_at,r.text,r.context]));
   let realUsers=(uRes.data||[]).map(p=>[p.full_name||p.id]);
   users.length=0;(realUsers.length?realUsers:[[currentUser]]).forEach(u=>users.push(u));
   seedIdCounters();
@@ -609,7 +620,7 @@ function renderPdBody(p,pt,tab,canManage,canAddWork){
   el.innerHTML=`<table class="access-table"><thead><tr><th>Change</th><th>Requested by</th><th>Impact</th><th>Status</th></tr></thead><tbody>${rows.map(c=>`<tr><td><b>${esc(c.title)}</b></td><td>${esc(c.requestedBy)}</td><td>${esc(c.impact)}</td><td>${canManage?`<select onchange="updateChangeStatus('${c.id}',this.value)">${['Proposed','Approved','Rejected','Implemented'].map(s=>`<option ${s==c.status?'selected':''}>${s}</option>`)}</select>`:`<span class="status-chip ${cls(c.status)}">${c.status}</span>`}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">No change requests.</td></tr>'}</tbody></table>`+(canManage?changeForm(p.name):'');
  } else if(tab=='activity'){
   let rows=activity.filter(a=>a[2]==p.name||pt.some(t=>a[2]==t.title));
-  el.innerHTML=`<div class="panel activity">${rows.map(a=>`<div class="event"><span class="avatar"><i class="ph ph-check"></i></span><div><b>${esc(a[1])}</b><small>${esc(a[2])}</small></div><small>${a[0]}</small></div>`).join('')||'<div class="empty">No activity for this project yet.</div>'}</div>`;
+  el.innerHTML=`<div class="panel activity">${rows.map(a=>`<div class="event"><span class="avatar"><i class="ph ph-check"></i></span><div><b>${esc(a[1])}</b><small>${esc(a[2])}</small></div><small>${fmtActivityTime(a[0])}</small></div>`).join('')||'<div class="empty">No activity for this project yet.</div>'}</div>`;
  }
 }
 function riskTable(rows){return `<table class="access-table"><thead><tr><th>Risk / Issue</th><th>Severity</th><th>Owner</th><th>Status</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.title)}</b><br><small style="color:var(--muted)">${esc(r.notes)}</small></td><td><span class="priority ${cls(r.severity)}">${r.severity}</span></td><td>${esc(r.owner)}</td><td>${currentRole=='Administrator'||currentRole=='Project Manager'?`<select onchange="updateRiskStatus('${r.id}',this.value)">${['Open','Mitigated','Closed'].map(s=>`<option ${s==r.status?'selected':''}>${s}</option>`)}</select>`:`<span class="status-chip ${cls(r.status)}">${r.status}</span>`}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">No risks logged.</td></tr>'}</tbody></table>`}
@@ -763,7 +774,7 @@ function renderActivityLog(){
  host.innerHTML=`<div class="head"><div><p class="eyebrow">AUDIT TRAIL</p><h1>Activity & history</h1><p>A read-only record of significant portfolio changes.</p></div></div><input class="search" style="width:100%;margin-bottom:14px" placeholder="Search activity..." oninput="renderActivityLog(this.value)"><div class="panel activity" id="activityBody"></div>`;
  let q=(arguments[0]||'').toLowerCase();
  let rows=q?activity.filter(a=>a.join(' ').toLowerCase().includes(q)):activity;
- document.getElementById('activityBody').innerHTML=rows.map(a=>`<div class="event"><span class="avatar"><i class="ph ph-check"></i></span><div><b>${esc(a[1])}</b><small>${esc(a[2])} · Recorded automatically</small></div><small>${a[0]}</small></div>`).join('')||'<div class="empty">No matching activity.</div>';
+ document.getElementById('activityBody').innerHTML=rows.map(a=>`<div class="event"><span class="avatar"><i class="ph ph-check"></i></span><div><b>${esc(a[1])}</b><small>${esc(a[2])} · Recorded automatically</small></div><small>${fmtActivityTime(a[0])}</small></div>`).join('')||'<div class="empty">No matching activity.</div>';
 }
 
 /* ---------- Users & access ---------- */
@@ -948,7 +959,7 @@ function openDetail(id){
  ${edit?`<input placeholder="Add a link label and press Enter" style="width:100%;height:34px;border:1px solid #ddd;border-radius:7px;padding:0 8px;margin-top:6px" onkeydown="if(event.key=='Enter'){addAttachment('${id}',this.value);this.value=''}">`:''}</div>
  <div class="detailblock"><h3>Discussion</h3>${t.comments.map(c=>`<div class="comment"><b>${esc(c.author)} · ${fmtShort(c.date)}</b><p>${linkify(c.text)}</p></div>${c.replies.map(r=>`<div class="comment reply"><b>${esc(r.author)} · ${fmtShort(r.date)}</b><p>${linkify(r.text)}</p></div>`).join('')}${edit?`<input placeholder="Reply..." style="width:100%;height:30px;border:1px solid #ddd;border-radius:7px;padding:0 8px;margin:4px 0 10px 22px;width:calc(100% - 22px)" onkeydown="if(event.key=='Enter'){addReply('${id}','${c.id}',this.value);this.value=''}">`:''}`).join('')}
  ${edit?`<input placeholder="Add a comment or @mention..." style="width:100%;height:36px;border:1px solid #ddd;border-radius:7px;padding:0 10px;margin-top:6px" onkeydown="if(event.key=='Enter'){addComment('${id}',this.value);this.value=''}">`:''}</div>
- <div class="detailblock"><h3>History</h3>${activity.filter(a=>a[2]==t.title).slice(0,8).map(a=>`<p style="font-size:12px;margin:4px 0">${esc(a[1])} · ${a[0]}</p>`).join('')||`<p style="font-size:12px;color:var(--muted)">Record created · ${fmtDate(t.createdAt)}</p>`}</div>
+ <div class="detailblock"><h3>History</h3>${activity.filter(a=>a[2]==t.title).slice(0,8).map(a=>`<p style="font-size:12px;margin:4px 0">${esc(a[1])} · ${fmtActivityTime(a[0])}</p>`).join('')||`<p style="font-size:12px;color:var(--muted)">Record created · ${fmtDate(t.createdAt)}</p>`}</div>
  </aside>`;
 }
 function removeItem(id){

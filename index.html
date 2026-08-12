@@ -270,6 +270,7 @@ async function onAuthReady(){
  document.getElementById('rolePreview').value=currentRole;
  document.getElementById('authGate').style.display='none';
  document.getElementById('appShell').style.display='';
+ await loadAllData();
  setAccessVisibility();render();
 }
 async function handleSignOut(){if(!sb)return location.reload();await sb.auth.signOut();location.reload()}
@@ -309,7 +310,53 @@ let decisions=[];
 let changeRequests=[];
 
 let activity=[];
-function logActivity(text,context){activity.unshift(['Just now',text,context])}
+function logActivity(text,context){
+ activity.unshift(['Just now',text,context]);
+ if(sb)sb.from('activity_log').insert({time_label:'Just now',text,context}).then(({error})=>{if(error)console.error('Failed to log activity:',error)});
+}
+
+/* ---------- Supabase persistence ---------- */
+function projectToRow(p){return{id:p.id,name:p.name,prefix:p.prefix,owner:p.owner,team:p.team,category:p.category,objective:p.objective,description:p.description,status:p.status,priority:p.priority,planned_start:p.plannedStart||null,planned_end:p.plannedEnd||null,actual_start:p.actualStart||null,actual_end:p.actualEnd||null,progress:p.progress,health:p.health,budget:p.budget,actual_cost:p.actualCost,confidential:p.confidential,color:p.color,milestones:p.milestones,dependencies:p.dependencies,links:p.links,created_by:p.createdBy||currentUser,updated_at:new Date().toISOString()}}
+function rowToProject(r){return{id:r.id,name:r.name,prefix:r.prefix,owner:r.owner,team:r.team,category:r.category,objective:r.objective,description:r.description,status:r.status,priority:r.priority,plannedStart:r.planned_start||'',plannedEnd:r.planned_end||'',actualStart:r.actual_start||'',actualEnd:r.actual_end||'',progress:r.progress||0,health:r.health,budget:Number(r.budget)||0,actualCost:Number(r.actual_cost)||0,confidential:!!r.confidential,color:r.color,milestones:r.milestones||[],dependencies:r.dependencies||[],links:r.links||[],createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at}}
+function itemToRow(t){return{id:t.id,title:t.title,description:t.description,type:t.type,linked_projects:t.linkedProjects,assignee:t.assignee,status:t.status,priority:t.priority,start_date:t.startDate||null,due_date:t.dueDate||null,actual_completion:t.actualCompletion||null,progress:t.progress,est_effort:t.estEffort,actual_effort:t.actualEffort,dependencies:t.dependencies,blockers:t.blockers,tags:t.tags,attachments:t.attachments,comments:t.comments,subtasks:t.subtasks,approval_status:t.approvalStatus,created_by:t.createdBy,updated_at:new Date().toISOString()}}
+function rowToItem(r){return{id:r.id,title:r.title,description:r.description,type:r.type,linkedProjects:r.linked_projects||[],assignee:r.assignee,status:r.status,priority:r.priority,startDate:r.start_date||'',dueDate:r.due_date||'',actualCompletion:r.actual_completion||'',progress:r.progress||0,estEffort:Number(r.est_effort)||0,actualEffort:Number(r.actual_effort)||0,dependencies:r.dependencies||[],blockers:r.blockers||[],tags:r.tags||[],attachments:r.attachments||[],comments:r.comments||[],subtasks:r.subtasks||[],approvalStatus:r.approval_status,createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at}}
+function persistItem(t){if(!sb)return;sb.from('work_items').update(itemToRow(t)).eq('id',t.id).then(({error})=>{if(error){console.error('Failed to save item:',error);toast('Could not save: '+error.message)}})}
+function persistProject(p){if(!sb)return;sb.from('projects').update(projectToRow(p)).eq('id',p.id).then(({error})=>{if(error){console.error('Failed to save project:',error);toast('Could not save: '+error.message)}})}
+async function loadAllData(){
+ if(!sb)return;
+ try{
+  let[pRes,iRes,rRes,dRes,cRes,aRes]=await Promise.all([
+   sb.from('projects').select('*').order('created_at'),
+   sb.from('work_items').select('*').order('created_at'),
+   sb.from('risks').select('*').order('created_at'),
+   sb.from('decisions').select('*').order('created_at'),
+   sb.from('change_requests').select('*').order('created_at'),
+   sb.from('activity_log').select('*').order('created_at',{ascending:false}).limit(300)
+  ]);
+  if(pRes.error)throw pRes.error;if(iRes.error)throw iRes.error;
+  projects.length=0;(pRes.data||[]).forEach(r=>projects.push(rowToProject(r)));
+  items.length=0;(iRes.data||[]).forEach(r=>items.push(rowToItem(r)));
+  risks.length=0;(rRes.data||[]).forEach(r=>risks.push({id:r.id,project:r.project,title:r.title,severity:r.severity,status:r.status,owner:r.owner,date:r.date,notes:r.notes}));
+  decisions.length=0;(dRes.data||[]).forEach(r=>decisions.push({id:r.id,project:r.project,title:r.title,decision:r.decision,date:r.date,owner:r.owner}));
+  changeRequests.length=0;(cRes.data||[]).forEach(r=>changeRequests.push({id:r.id,project:r.project,title:r.title,status:r.status,requestedBy:r.requested_by,date:r.date,impact:r.impact}));
+  activity.length=0;(aRes.data||[]).forEach(r=>activity.push([r.time_label,r.text,r.context]));
+  seedIdCounters();
+ }catch(err){console.error('Failed to load data from Supabase:',err);toast('Could not load saved data: '+err.message)}
+}
+function seedIdCounters(){
+ idCounters={};
+ function bump(id){
+  let m=String(id||'').match(/^([A-Za-z]+)-(\d+)$/);
+  if(!m)return;
+  let prefix=m[1],num=Number(m[2]);
+  if(!idCounters[prefix]||num>idCounters[prefix])idCounters[prefix]=num;
+ }
+ projects.forEach(p=>{bump(p.id);(p.milestones||[]).forEach(m=>bump(m.id))});
+ items.forEach(t=>{bump(t.id);(t.comments||[]).forEach(c=>bump(c.id))});
+ risks.forEach(r=>bump(r.id));
+ decisions.forEach(d=>bump(d.id));
+ changeRequests.forEach(c=>bump(c.id));
+}
 
 const users=[['Karen Quah','Digital','Administrator','All projects','Active'],['Wein Tan','AI Platforms','Project Manager','Collabrium Workspace','Active']];
 
@@ -817,7 +864,9 @@ function addItemSubmit(e){
  e.preventDefault();let f=new FormData(e.target);let owner=f.get('owner');let type=f.get('type');let projName=f.get('project');
  let prefix=type=='Shared'?'SHR':(projectByName(projName)?.prefix||projectPrefix(projName));
  let it={id:uid(prefix),title:f.get('title'),description:f.get('description')||'',type,linkedProjects:type=='Shared'?[f.get('project')]:[f.get('project')],assignee:owner,status:'Backlog',priority:f.get('priority'),startDate:f.get('start')||'',dueDate:f.get('due')||'',actualCompletion:'',progress:0,estEffort:0,actualEffort:0,dependencies:[],blockers:[],tags:['New'],attachments:[],comments:[],subtasks:[],approvalStatus:'Pending',createdBy:currentUser,createdAt:iso(TODAY),updatedAt:iso(TODAY)};
- items.unshift(it);logActivity('You created a work item',it.title);closeOverlay();render();
+ items.unshift(it);
+ if(sb)sb.from('work_items').insert(itemToRow(it)).then(({error})=>{if(error){console.error('Failed to save item:',error);toast('Could not save: '+error.message)}});
+ logActivity('You created a work item',it.title);closeOverlay();render();
 }
 function openQuickTask(project,status){
  if(!['Administrator','Project Manager'].includes(currentRole))return denied();
@@ -826,7 +875,9 @@ function openQuickTask(project,status){
 }
 function addQuickTask(e,project,status){
  e.preventDefault();let f=new FormData(e.target);let owner=f.get('owner');let prefix=projectByName(project)?.prefix||projectPrefix(project);
- items.push({id:uid(prefix),title:f.get('title'),description:'',type:'Project-Specific',linkedProjects:[project],assignee:owner,status,priority:f.get('priority'),startDate:'',dueDate:f.get('due')||'',actualCompletion:'',progress:status=='Completed'?100:0,estEffort:0,actualEffort:0,dependencies:[],blockers:[],tags:['New'],attachments:[],comments:[],subtasks:[],approvalStatus:'Pending',createdBy:currentUser,createdAt:iso(TODAY),updatedAt:iso(TODAY)});
+ let it={id:uid(prefix),title:f.get('title'),description:'',type:'Project-Specific',linkedProjects:[project],assignee:owner,status,priority:f.get('priority'),startDate:'',dueDate:f.get('due')||'',actualCompletion:'',progress:status=='Completed'?100:0,estEffort:0,actualEffort:0,dependencies:[],blockers:[],tags:['New'],attachments:[],comments:[],subtasks:[],approvalStatus:'Pending',createdBy:currentUser,createdAt:iso(TODAY),updatedAt:iso(TODAY)};
+ items.push(it);
+ if(sb)sb.from('work_items').insert(itemToRow(it)).then(({error})=>{if(error){console.error('Failed to save item:',error);toast('Could not save: '+error.message)}});
  logActivity(`You added work to ${project}`,f.get('title'));closeOverlay();render();
 }
 function updateItem(id,field,value){
@@ -836,6 +887,7 @@ function updateItem(id,field,value){
  else if(field=='progress'){t.progress=Number(value);if(t.progress>=100){t.progress=100;t.status='Completed';t.actualCompletion=iso(TODAY)}else if(t.status=='Completed')t.status='In Progress';}
  else t[field]=value;
  t.updatedAt=iso(TODAY);
+ persistItem(t);
  logActivity(`You updated ${field} on ${t.title}`+(before&&before!=value?` (${before} → ${value})`:''),t.title);
  if(field=='assignee')toast(`Notified ${value}: assigned to "${t.title}"`);
  if(field=='status'&&value=='Blocked')toast(`Alert sent to project manager: "${t.title}" is now Blocked`);
@@ -875,33 +927,34 @@ function confirmRemoveItem(id){
  let t=items.find(x=>x.id==id);if(!t)return closeOverlay();
  if(!canEdit(t))return denied();
  items.splice(items.indexOf(t),1);
+ if(sb)sb.from('work_items').delete().eq('id',id).then(({error})=>{if(error)console.error('Failed to delete item:',error)});
  logActivity(`Deleted work item: ${t.title}`,t.title);
  closeOverlay();render();
 }
-function addBlocker(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.blockers.push(text.trim());if(t.status!='Blocked'){t.status='Blocked'}logActivity(`Blocker added: ${text.trim()}`,t.title);render();openDetail(id)}
-function removeBlocker(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.blockers.splice(i,1)[0];logActivity(`Blocker removed: ${removed}`,t.title);render();openDetail(id)}
-function editBlocker(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit blocker',t.blockers[i]);if(val==null||!val.trim())return;let before=t.blockers[i];t.blockers[i]=val.trim();logActivity(`Blocker updated: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
-function toggleSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.subtasks[i].done=!t.subtasks[i].done;logActivity(`Checklist item ${t.subtasks[i].done?'completed':'reopened'}: ${t.subtasks[i].text}`,t.title);render();openDetail(id)}
-function addSubtask(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.subtasks.push({text:text.trim(),done:false});logActivity(`Checklist item added: ${text.trim()}`,t.title);render();openDetail(id)}
-function removeSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.subtasks.splice(i,1)[0];logActivity(`Checklist item removed: ${removed.text}`,t.title);render();openDetail(id)}
-function editSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit checklist item',t.subtasks[i].text);if(val==null||!val.trim())return;let before=t.subtasks[i].text;t.subtasks[i].text=val.trim();logActivity(`Checklist item renamed: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
-function addAttachment(id,label){if(!label.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.attachments.push({label:label.trim(),url:'#'});logActivity(`Attachment added: ${label.trim()}`,t.title);render();openDetail(id)}
-function removeAttachment(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.attachments.splice(i,1)[0];logActivity(`Attachment removed: ${removed.label}`,t.title);render();openDetail(id)}
-function editAttachment(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit link label',t.attachments[i].label);if(val==null||!val.trim())return;let before=t.attachments[i].label;t.attachments[i].label=val.trim();logActivity(`Attachment renamed: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
-function addComment(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);t.comments.push({id:uid('C'),author:currentUser,date:iso(TODAY),text:text.trim(),replies:[]});logActivity('You added a comment',t.title);let mentions=text.match(/@(\w+)/g);if(mentions)toast(`Notified ${mentions.join(', ')}`);render();openDetail(id)}
-function addReply(id,commentId,text){if(!text.trim())return;let t=items.find(x=>x.id==id);let c=t.comments.find(x=>x.id==commentId);c.replies.push({author:currentUser,date:iso(TODAY),text:text.trim()});render();openDetail(id)}
+function addBlocker(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.blockers.push(text.trim());if(t.status!='Blocked'){t.status='Blocked'}persistItem(t);logActivity(`Blocker added: ${text.trim()}`,t.title);render();openDetail(id)}
+function removeBlocker(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.blockers.splice(i,1)[0];persistItem(t);logActivity(`Blocker removed: ${removed}`,t.title);render();openDetail(id)}
+function editBlocker(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit blocker',t.blockers[i]);if(val==null||!val.trim())return;let before=t.blockers[i];t.blockers[i]=val.trim();persistItem(t);logActivity(`Blocker updated: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
+function toggleSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.subtasks[i].done=!t.subtasks[i].done;persistItem(t);logActivity(`Checklist item ${t.subtasks[i].done?'completed':'reopened'}: ${t.subtasks[i].text}`,t.title);render();openDetail(id)}
+function addSubtask(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.subtasks.push({text:text.trim(),done:false});persistItem(t);logActivity(`Checklist item added: ${text.trim()}`,t.title);render();openDetail(id)}
+function removeSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.subtasks.splice(i,1)[0];persistItem(t);logActivity(`Checklist item removed: ${removed.text}`,t.title);render();openDetail(id)}
+function editSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit checklist item',t.subtasks[i].text);if(val==null||!val.trim())return;let before=t.subtasks[i].text;t.subtasks[i].text=val.trim();persistItem(t);logActivity(`Checklist item renamed: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
+function addAttachment(id,label){if(!label.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.attachments.push({label:label.trim(),url:'#'});persistItem(t);logActivity(`Attachment added: ${label.trim()}`,t.title);render();openDetail(id)}
+function removeAttachment(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.attachments.splice(i,1)[0];persistItem(t);logActivity(`Attachment removed: ${removed.label}`,t.title);render();openDetail(id)}
+function editAttachment(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit link label',t.attachments[i].label);if(val==null||!val.trim())return;let before=t.attachments[i].label;t.attachments[i].label=val.trim();persistItem(t);logActivity(`Attachment renamed: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
+function addComment(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);t.comments.push({id:uid('C'),author:currentUser,date:iso(TODAY),text:text.trim(),replies:[]});persistItem(t);logActivity('You added a comment',t.title);let mentions=text.match(/@(\w+)/g);if(mentions)toast(`Notified ${mentions.join(', ')}`);render();openDetail(id)}
+function addReply(id,commentId,text){if(!text.trim())return;let t=items.find(x=>x.id==id);let c=t.comments.find(x=>x.id==commentId);c.replies.push({author:currentUser,date:iso(TODAY),text:text.trim()});persistItem(t);render();openDetail(id)}
 
 /* ---------- CRUD: milestones / risks / decisions / changes ---------- */
-function toggleMilestone(pid,mid){let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);m.done=!m.done;logActivity(`Milestone "${m.name}" marked ${m.done?'done':'pending'}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
-function addMilestone(e,pid){e.preventDefault();let f=new FormData(e.target);let p=projects.find(x=>x.id==pid);p.milestones.push({id:uid('M'),name:f.get('name'),due:f.get('due'),done:false});logActivity(`Milestone "${f.get('name')}" added`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
-function removeMilestone(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let idx=p.milestones.findIndex(x=>x.id==mid);if(idx<0)return;let removed=p.milestones.splice(idx,1)[0];logActivity(`Milestone removed: ${removed.name}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
-function editMilestoneName(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit milestone name',m.name);if(val==null||!val.trim())return;let before=m.name;m.name=val.trim();logActivity(`Milestone renamed: "${before}" → "${val.trim()}"`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
-function editMilestoneDate(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit due date (YYYY-MM-DD)',m.due);if(val==null)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(val.trim()))return toast('Enter a date as YYYY-MM-DD');let before=m.due;m.due=val.trim();logActivity(`Milestone "${m.name}" due date changed: ${fmtShort(before)} → ${fmtShort(val.trim())}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
-function addRisk(e,pname){e.preventDefault();let f=new FormData(e.target);risks.unshift({id:uid('RSK'),project:pname,title:f.get('title'),severity:f.get('severity'),status:'Open',owner:f.get('owner'),date:iso(TODAY),notes:''});logActivity(`Risk logged: ${f.get('title')}`,pname);window.__pdTab='risks';renderWorkspace()}
-function updateRiskStatus(id,status){let r=risks.find(x=>x.id==id);r.status=status;logActivity(`Risk "${r.title}" set to ${status}`,r.project);window.__pdTab='risks';renderWorkspace()}
-function addDecision(e,pname){e.preventDefault();let f=new FormData(e.target);decisions.unshift({id:uid('DEC'),project:pname,title:f.get('title'),decision:f.get('decision'),date:iso(TODAY),owner:currentUser});logActivity(`Decision logged: ${f.get('title')}`,pname);window.__pdTab='decisions';renderWorkspace()}
-function addChangeRequest(e,pname){e.preventDefault();let f=new FormData(e.target);changeRequests.unshift({id:uid('CR'),project:pname,title:f.get('title'),status:'Proposed',requestedBy:currentUser,date:iso(TODAY),impact:f.get('impact')||'TBD'});logActivity(`Change request submitted: ${f.get('title')}`,pname);window.__pdTab='changes';renderWorkspace()}
-function updateChangeStatus(id,status){let c=changeRequests.find(x=>x.id==id);c.status=status;logActivity(`Change request "${c.title}" set to ${status}`,c.project);window.__pdTab='changes';renderWorkspace()}
+function toggleMilestone(pid,mid){let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);m.done=!m.done;persistProject(p);logActivity(`Milestone "${m.name}" marked ${m.done?'done':'pending'}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function addMilestone(e,pid){e.preventDefault();let f=new FormData(e.target);let p=projects.find(x=>x.id==pid);p.milestones.push({id:uid('M'),name:f.get('name'),due:f.get('due'),done:false});persistProject(p);logActivity(`Milestone "${f.get('name')}" added`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function removeMilestone(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let idx=p.milestones.findIndex(x=>x.id==mid);if(idx<0)return;let removed=p.milestones.splice(idx,1)[0];persistProject(p);logActivity(`Milestone removed: ${removed.name}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function editMilestoneName(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit milestone name',m.name);if(val==null||!val.trim())return;let before=m.name;m.name=val.trim();persistProject(p);logActivity(`Milestone renamed: "${before}" → "${val.trim()}"`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function editMilestoneDate(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit due date (YYYY-MM-DD)',m.due);if(val==null)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(val.trim()))return toast('Enter a date as YYYY-MM-DD');let before=m.due;m.due=val.trim();persistProject(p);logActivity(`Milestone "${m.name}" due date changed: ${fmtShort(before)} → ${fmtShort(val.trim())}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function addRisk(e,pname){e.preventDefault();let f=new FormData(e.target);let r={id:uid('RSK'),project:pname,title:f.get('title'),severity:f.get('severity'),status:'Open',owner:f.get('owner'),date:iso(TODAY),notes:''};risks.unshift(r);if(sb)sb.from('risks').insert(r).then(({error})=>{if(error)console.error('Failed to save risk:',error)});logActivity(`Risk logged: ${f.get('title')}`,pname);window.__pdTab='risks';renderWorkspace()}
+function updateRiskStatus(id,status){let r=risks.find(x=>x.id==id);r.status=status;if(sb)sb.from('risks').update({status}).eq('id',id).then(({error})=>{if(error)console.error('Failed to update risk:',error)});logActivity(`Risk "${r.title}" set to ${status}`,r.project);window.__pdTab='risks';renderWorkspace()}
+function addDecision(e,pname){e.preventDefault();let f=new FormData(e.target);let d={id:uid('DEC'),project:pname,title:f.get('title'),decision:f.get('decision'),date:iso(TODAY),owner:currentUser};decisions.unshift(d);if(sb)sb.from('decisions').insert(d).then(({error})=>{if(error)console.error('Failed to save decision:',error)});logActivity(`Decision logged: ${f.get('title')}`,pname);window.__pdTab='decisions';renderWorkspace()}
+function addChangeRequest(e,pname){e.preventDefault();let f=new FormData(e.target);let c={id:uid('CR'),project:pname,title:f.get('title'),status:'Proposed',requestedBy:currentUser,date:iso(TODAY),impact:f.get('impact')||'TBD'};changeRequests.unshift(c);if(sb)sb.from('change_requests').insert({id:c.id,project:c.project,title:c.title,status:c.status,requested_by:c.requestedBy,date:c.date,impact:c.impact}).then(({error})=>{if(error)console.error('Failed to save change request:',error)});logActivity(`Change request submitted: ${f.get('title')}`,pname);window.__pdTab='changes';renderWorkspace()}
+function updateChangeStatus(id,status){let c=changeRequests.find(x=>x.id==id);c.status=status;if(sb)sb.from('change_requests').update({status}).eq('id',id).then(({error})=>{if(error)console.error('Failed to update change request:',error)});logActivity(`Change request "${c.title}" set to ${status}`,c.project);window.__pdTab='changes';renderWorkspace()}
 
 /* ---------- CRUD: projects ---------- */
 function openAddProject(){
@@ -918,8 +971,10 @@ function openAddProject(){
 }
 function addProject(e){
  e.preventDefault();let f=new FormData(e.target),name=String(f.get('name')).trim();
- projects.push({id:`PRJ-${String(32+projects.length).padStart(3,'0')}`,name,owner:f.get('owner'),team:f.get('team'),category:'General',objective:f.get('objective'),description:f.get('objective'),status:'Active',priority:f.get('priority'),plannedStart:f.get('start'),plannedEnd:f.get('due'),actualStart:f.get('start'),actualEnd:'',progress:0,health:'On Track',budget:Number(f.get('budget'))||0,actualCost:0,confidential:f.get('confidential')=='on',color:['#397dcc','#8a5bd8','#159b82','#dc6b43'][projects.length%4],milestones:[],dependencies:[],links:[],createdAt:iso(TODAY),updatedAt:iso(TODAY)});
- logActivity(`Karen created project ${name}`,'Projects');closeOverlay();render();
+ let p={id:uid('PRJ'),name,prefix:projectPrefix(name),owner:f.get('owner'),team:f.get('team'),category:'General',objective:f.get('objective'),description:f.get('objective'),status:'Active',priority:f.get('priority'),plannedStart:f.get('start'),plannedEnd:f.get('due'),actualStart:f.get('start'),actualEnd:'',progress:0,health:'On Track',budget:Number(f.get('budget'))||0,actualCost:0,confidential:f.get('confidential')=='on',color:['#397dcc','#8a5bd8','#159b82','#dc6b43'][projects.length%4],milestones:[],dependencies:[],links:[],createdBy:currentUser,createdAt:iso(TODAY),updatedAt:iso(TODAY)};
+ projects.push(p);
+ if(sb)sb.from('projects').insert(projectToRow(p)).then(({error})=>{if(error){console.error('Failed to save project:',error);toast('Could not save project: '+error.message)}});
+ logActivity(`${currentUser} created project ${name}`,'Projects');closeOverlay();render();
 }
 function removeProject(id){
  if(currentRole!='Administrator')return denied();let p=projects.find(x=>x.id==id);if(!p)return;
@@ -928,9 +983,19 @@ function removeProject(id){
 }
 function confirmRemoveProject(id){
  let p=projects.find(x=>x.id==id);if(!p)return closeOverlay();
- items=items.filter(t=>{if(t.type=='Shared'){t.linkedProjects=t.linkedProjects.filter(n=>n!=p.name);return true}return !t.linkedProjects.includes(p.name)});
+ let removedIds=[],updatedShared=[];
+ items=items.filter(t=>{
+  if(t.type=='Shared'){t.linkedProjects=t.linkedProjects.filter(n=>n!=p.name);updatedShared.push(t);return true}
+  if(t.linkedProjects.includes(p.name)){removedIds.push(t.id);return false}
+  return true;
+ });
  projects.splice(projects.indexOf(p),1);
- logActivity(`Karen removed project ${p.name}`,'Projects');closeOverlay();render();
+ if(sb){
+  sb.from('projects').delete().eq('id',id).then(({error})=>{if(error)console.error('Failed to delete project:',error)});
+  if(removedIds.length)sb.from('work_items').delete().in('id',removedIds).then(({error})=>{if(error)console.error('Failed to delete project work items:',error)});
+  updatedShared.forEach(persistItem);
+ }
+ logActivity(`${currentUser} removed project ${p.name}`,'Projects');closeOverlay();render();
 }
 
 /* ---------- CRUD: users (real accounts via Supabase Auth) ---------- */

@@ -664,8 +664,8 @@ function toggleSelect(id,checked){checked?listSelected.add(id):listSelected.dele
 function applyBulk(){
  if(!['Administrator','Project Manager'].includes(currentRole))return denied();
  let st=document.getElementById('bulkStatus').value,pr=document.getElementById('bulkPriority').value,as=document.getElementById('bulkAssignee').value;
- listSelected.forEach(id=>{let t=items.find(x=>x.id==id);if(!t)return;if(st)t.status=st;if(pr)t.priority=pr;if(as)t.assignee=as;t.updatedAt=iso(TODAY)});
- logActivity(`Bulk-updated ${listSelected.size} work item(s)`,'Work items');
+ listSelected.forEach(id=>{let t=items.find(x=>x.id==id);if(!t)return;if(st)t.status=st;if(pr)t.priority=pr;if(as)t.assignee=as;t.updatedAt=iso(TODAY);persistItem(t)});
+ logActivity(`${currentUser} bulk-updated ${listSelected.size} work item(s)`,'Work items');
  listSelected.clear();render();
 }
 function exportCSV(){
@@ -686,10 +686,12 @@ function importCSV(e){
   lines.forEach(line=>{
    let cols=line.split(',');let row={};header.forEach((h,i)=>row[h]=(cols[i]||'').replace(/^"|"$/g,'').trim());
    if(!row.title)return;
-   items.push({id:uid('IMP'),title:row.title,description:'',type:row.type||'Project-Specific',linkedProjects:row.project?[row.project]:[],assignee:row.assignee||'Unassigned',status:row.status||'Backlog',priority:row.priority||'Medium',startDate:'',dueDate:row.due||'',actualCompletion:'',progress:0,estEffort:0,actualEffort:0,dependencies:[],blockers:[],tags:['Imported'],attachments:[],comments:[],subtasks:[],approvalStatus:'Pending',createdBy:currentUser,createdAt:iso(TODAY),updatedAt:iso(TODAY)});
+   let it={id:uid('IMP'),title:row.title,description:'',type:row.type||'Project-Specific',linkedProjects:row.project?[row.project]:[],assignee:row.assignee||'Unassigned',status:row.status||'Backlog',priority:row.priority||'Medium',startDate:'',dueDate:row.due||'',actualCompletion:'',progress:0,estEffort:0,actualEffort:0,dependencies:[],blockers:[],tags:['Imported'],attachments:[],comments:[],subtasks:[],approvalStatus:'Pending',createdBy:currentUser,createdAt:iso(TODAY),updatedAt:iso(TODAY)};
+   items.push(it);
+   if(sb)sb.from('work_items').insert(itemToRow(it)).then(({error})=>{if(error)console.error('Failed to save imported item:',error)});
    added++;
   });
-  logActivity(`Imported ${added} work item(s) from CSV`,'Work items');
+  logActivity(`${currentUser} imported ${added} work item(s) from CSV`,'Work items');
   toast(`Imported ${added} work item(s)`);
   render();
  };
@@ -869,7 +871,7 @@ function addItemSubmit(e){
  let it={id:uid(prefix),title:f.get('title'),description:f.get('description')||'',type,linkedProjects:type=='Shared'?[f.get('project')]:[f.get('project')],assignee:owner,status:'Backlog',priority:f.get('priority'),startDate:f.get('start')||'',dueDate:f.get('due')||'',actualCompletion:'',progress:0,estEffort:0,actualEffort:0,dependencies:[],blockers:[],tags:['New'],attachments:[],comments:[],subtasks:[],approvalStatus:'Pending',createdBy:currentUser,createdAt:iso(TODAY),updatedAt:iso(TODAY)};
  items.unshift(it);
  if(sb)sb.from('work_items').insert(itemToRow(it)).then(({error})=>{if(error){console.error('Failed to save item:',error);toast('Could not save: '+error.message)}});
- logActivity('You created a work item',it.title);closeOverlay();render();
+ logActivity(`${currentUser} created a work item`,it.title);closeOverlay();render();
 }
 function openQuickTask(project,status){
  if(!['Administrator','Project Manager','Contributor'].includes(currentRole))return denied();
@@ -881,7 +883,7 @@ function addQuickTask(e,project,status){
  let it={id:uid(prefix),title:f.get('title'),description:'',type:'Project-Specific',linkedProjects:[project],assignee:owner,status,priority:f.get('priority'),startDate:'',dueDate:f.get('due')||'',actualCompletion:'',progress:status=='Completed'?100:0,estEffort:0,actualEffort:0,dependencies:[],blockers:[],tags:['New'],attachments:[],comments:[],subtasks:[],approvalStatus:'Pending',createdBy:currentUser,createdAt:iso(TODAY),updatedAt:iso(TODAY)};
  items.push(it);
  if(sb)sb.from('work_items').insert(itemToRow(it)).then(({error})=>{if(error){console.error('Failed to save item:',error);toast('Could not save: '+error.message)}});
- logActivity(`You added work to ${project}`,f.get('title'));closeOverlay();render();
+ logActivity(`${currentUser} added work to ${project}`,f.get('title'));closeOverlay();render();
 }
 function updateItem(id,field,value){
  let t=items.find(x=>x.id==id);if(!t)return;if(!canEdit(t))return denied();
@@ -891,7 +893,7 @@ function updateItem(id,field,value){
  else t[field]=value;
  t.updatedAt=iso(TODAY);
  persistItem(t);
- logActivity(`You updated ${field} on ${t.title}`+(before&&before!=value?` (${before} → ${value})`:''),t.title);
+ logActivity(`${currentUser} updated ${field} on ${t.title}`+(before&&before!=value?` (${before} → ${value})`:''),t.title);
  if(field=='assignee')toast(`Notified ${value}: assigned to "${t.title}"`);
  if(field=='status'&&value=='Blocked')toast(`Alert sent to project manager: "${t.title}" is now Blocked`);
  render();
@@ -931,33 +933,33 @@ function confirmRemoveItem(id){
  if(!canEdit(t))return denied();
  items.splice(items.indexOf(t),1);
  if(sb)sb.from('work_items').delete().eq('id',id).then(({error})=>{if(error)console.error('Failed to delete item:',error)});
- logActivity(`Deleted work item: ${t.title}`,t.title);
+ logActivity(`${currentUser} deleted work item: ${t.title}`,t.title);
  closeOverlay();render();
 }
-function addBlocker(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.blockers.push(text.trim());if(t.status!='Blocked'){t.status='Blocked'}persistItem(t);logActivity(`Blocker added: ${text.trim()}`,t.title);render();openDetail(id)}
-function removeBlocker(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.blockers.splice(i,1)[0];persistItem(t);logActivity(`Blocker removed: ${removed}`,t.title);render();openDetail(id)}
-function editBlocker(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit blocker',t.blockers[i]);if(val==null||!val.trim())return;let before=t.blockers[i];t.blockers[i]=val.trim();persistItem(t);logActivity(`Blocker updated: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
-function toggleSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.subtasks[i].done=!t.subtasks[i].done;persistItem(t);logActivity(`Checklist item ${t.subtasks[i].done?'completed':'reopened'}: ${t.subtasks[i].text}`,t.title);render();openDetail(id)}
-function addSubtask(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.subtasks.push({text:text.trim(),done:false});persistItem(t);logActivity(`Checklist item added: ${text.trim()}`,t.title);render();openDetail(id)}
-function removeSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.subtasks.splice(i,1)[0];persistItem(t);logActivity(`Checklist item removed: ${removed.text}`,t.title);render();openDetail(id)}
-function editSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit checklist item',t.subtasks[i].text);if(val==null||!val.trim())return;let before=t.subtasks[i].text;t.subtasks[i].text=val.trim();persistItem(t);logActivity(`Checklist item renamed: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
-function addAttachment(id,label){if(!label.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.attachments.push({label:label.trim(),url:'#'});persistItem(t);logActivity(`Attachment added: ${label.trim()}`,t.title);render();openDetail(id)}
-function removeAttachment(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.attachments.splice(i,1)[0];persistItem(t);logActivity(`Attachment removed: ${removed.label}`,t.title);render();openDetail(id)}
-function editAttachment(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit link label',t.attachments[i].label);if(val==null||!val.trim())return;let before=t.attachments[i].label;t.attachments[i].label=val.trim();persistItem(t);logActivity(`Attachment renamed: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
-function addComment(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);t.comments.push({id:uid('C'),author:currentUser,date:iso(TODAY),text:text.trim(),replies:[]});persistItem(t);logActivity('You added a comment',t.title);let mentions=text.match(/@(\w+)/g);if(mentions)toast(`Notified ${mentions.join(', ')}`);render();openDetail(id)}
+function addBlocker(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.blockers.push(text.trim());if(t.status!='Blocked'){t.status='Blocked'}persistItem(t);logActivity(`${currentUser} added a blocker: ${text.trim()}`,t.title);render();openDetail(id)}
+function removeBlocker(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.blockers.splice(i,1)[0];persistItem(t);logActivity(`${currentUser} removed a blocker: ${removed}`,t.title);render();openDetail(id)}
+function editBlocker(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit blocker',t.blockers[i]);if(val==null||!val.trim())return;let before=t.blockers[i];t.blockers[i]=val.trim();persistItem(t);logActivity(`${currentUser} updated a blocker: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
+function toggleSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.subtasks[i].done=!t.subtasks[i].done;persistItem(t);logActivity(`${currentUser} ${t.subtasks[i].done?'completed':'reopened'} a checklist item: ${t.subtasks[i].text}`,t.title);render();openDetail(id)}
+function addSubtask(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.subtasks.push({text:text.trim(),done:false});persistItem(t);logActivity(`${currentUser} added a checklist item: ${text.trim()}`,t.title);render();openDetail(id)}
+function removeSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.subtasks.splice(i,1)[0];persistItem(t);logActivity(`${currentUser} removed a checklist item: ${removed.text}`,t.title);render();openDetail(id)}
+function editSubtask(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit checklist item',t.subtasks[i].text);if(val==null||!val.trim())return;let before=t.subtasks[i].text;t.subtasks[i].text=val.trim();persistItem(t);logActivity(`${currentUser} renamed a checklist item: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
+function addAttachment(id,label){if(!label.trim())return;let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();t.attachments.push({label:label.trim(),url:'#'});persistItem(t);logActivity(`${currentUser} added an attachment: ${label.trim()}`,t.title);render();openDetail(id)}
+function removeAttachment(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let removed=t.attachments.splice(i,1)[0];persistItem(t);logActivity(`${currentUser} removed an attachment: ${removed.label}`,t.title);render();openDetail(id)}
+function editAttachment(id,i){let t=items.find(x=>x.id==id);if(!canEdit(t))return denied();let val=prompt('Edit link label',t.attachments[i].label);if(val==null||!val.trim())return;let before=t.attachments[i].label;t.attachments[i].label=val.trim();persistItem(t);logActivity(`${currentUser} renamed an attachment: "${before}" → "${val.trim()}"`,t.title);render();openDetail(id)}
+function addComment(id,text){if(!text.trim())return;let t=items.find(x=>x.id==id);t.comments.push({id:uid('C'),author:currentUser,date:iso(TODAY),text:text.trim(),replies:[]});persistItem(t);logActivity(`${currentUser} added a comment`,t.title);let mentions=text.match(/@(\w+)/g);if(mentions)toast(`Notified ${mentions.join(', ')}`);render();openDetail(id)}
 function addReply(id,commentId,text){if(!text.trim())return;let t=items.find(x=>x.id==id);let c=t.comments.find(x=>x.id==commentId);c.replies.push({author:currentUser,date:iso(TODAY),text:text.trim()});persistItem(t);render();openDetail(id)}
 
 /* ---------- CRUD: milestones / risks / decisions / changes ---------- */
-function toggleMilestone(pid,mid){let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);m.done=!m.done;persistProject(p);logActivity(`Milestone "${m.name}" marked ${m.done?'done':'pending'}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
-function addMilestone(e,pid){e.preventDefault();let f=new FormData(e.target);let p=projects.find(x=>x.id==pid);p.milestones.push({id:uid('M'),name:f.get('name'),due:f.get('due'),done:false});persistProject(p);logActivity(`Milestone "${f.get('name')}" added`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
-function removeMilestone(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let idx=p.milestones.findIndex(x=>x.id==mid);if(idx<0)return;let removed=p.milestones.splice(idx,1)[0];persistProject(p);logActivity(`Milestone removed: ${removed.name}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
-function editMilestoneName(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit milestone name',m.name);if(val==null||!val.trim())return;let before=m.name;m.name=val.trim();persistProject(p);logActivity(`Milestone renamed: "${before}" → "${val.trim()}"`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
-function editMilestoneDate(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit due date (YYYY-MM-DD)',m.due);if(val==null)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(val.trim()))return toast('Enter a date as YYYY-MM-DD');let before=m.due;m.due=val.trim();persistProject(p);logActivity(`Milestone "${m.name}" due date changed: ${fmtShort(before)} → ${fmtShort(val.trim())}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
-function addRisk(e,pname){e.preventDefault();let f=new FormData(e.target);let r={id:uid('RSK'),project:pname,title:f.get('title'),severity:f.get('severity'),status:'Open',owner:f.get('owner'),date:iso(TODAY),notes:''};risks.unshift(r);if(sb)sb.from('risks').insert(r).then(({error})=>{if(error)console.error('Failed to save risk:',error)});logActivity(`Risk logged: ${f.get('title')}`,pname);window.__pdTab='risks';renderWorkspace()}
-function updateRiskStatus(id,status){let r=risks.find(x=>x.id==id);r.status=status;if(sb)sb.from('risks').update({status}).eq('id',id).then(({error})=>{if(error)console.error('Failed to update risk:',error)});logActivity(`Risk "${r.title}" set to ${status}`,r.project);window.__pdTab='risks';renderWorkspace()}
-function addDecision(e,pname){e.preventDefault();let f=new FormData(e.target);let d={id:uid('DEC'),project:pname,title:f.get('title'),decision:f.get('decision'),date:iso(TODAY),owner:currentUser};decisions.unshift(d);if(sb)sb.from('decisions').insert(d).then(({error})=>{if(error)console.error('Failed to save decision:',error)});logActivity(`Decision logged: ${f.get('title')}`,pname);window.__pdTab='decisions';renderWorkspace()}
-function addChangeRequest(e,pname){e.preventDefault();let f=new FormData(e.target);let c={id:uid('CR'),project:pname,title:f.get('title'),status:'Proposed',requestedBy:currentUser,date:iso(TODAY),impact:f.get('impact')||'TBD'};changeRequests.unshift(c);if(sb)sb.from('change_requests').insert({id:c.id,project:c.project,title:c.title,status:c.status,requested_by:c.requestedBy,date:c.date,impact:c.impact}).then(({error})=>{if(error)console.error('Failed to save change request:',error)});logActivity(`Change request submitted: ${f.get('title')}`,pname);window.__pdTab='changes';renderWorkspace()}
-function updateChangeStatus(id,status){let c=changeRequests.find(x=>x.id==id);c.status=status;if(sb)sb.from('change_requests').update({status}).eq('id',id).then(({error})=>{if(error)console.error('Failed to update change request:',error)});logActivity(`Change request "${c.title}" set to ${status}`,c.project);window.__pdTab='changes';renderWorkspace()}
+function toggleMilestone(pid,mid){let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);m.done=!m.done;persistProject(p);logActivity(`${currentUser} marked milestone "${m.name}" ${m.done?'done':'pending'}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function addMilestone(e,pid){e.preventDefault();let f=new FormData(e.target);let p=projects.find(x=>x.id==pid);p.milestones.push({id:uid('M'),name:f.get('name'),due:f.get('due'),done:false});persistProject(p);logActivity(`${currentUser} added milestone "${f.get('name')}"`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function removeMilestone(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let idx=p.milestones.findIndex(x=>x.id==mid);if(idx<0)return;let removed=p.milestones.splice(idx,1)[0];persistProject(p);logActivity(`${currentUser} removed milestone: ${removed.name}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function editMilestoneName(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit milestone name',m.name);if(val==null||!val.trim())return;let before=m.name;m.name=val.trim();persistProject(p);logActivity(`${currentUser} renamed milestone: "${before}" → "${val.trim()}"`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function editMilestoneDate(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit due date (YYYY-MM-DD)',m.due);if(val==null)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(val.trim()))return toast('Enter a date as YYYY-MM-DD');let before=m.due;m.due=val.trim();persistProject(p);logActivity(`${currentUser} changed milestone "${m.name}" due date: ${fmtShort(before)} → ${fmtShort(val.trim())}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+function addRisk(e,pname){e.preventDefault();let f=new FormData(e.target);let r={id:uid('RSK'),project:pname,title:f.get('title'),severity:f.get('severity'),status:'Open',owner:f.get('owner'),date:iso(TODAY),notes:''};risks.unshift(r);if(sb)sb.from('risks').insert(r).then(({error})=>{if(error)console.error('Failed to save risk:',error)});logActivity(`${currentUser} logged risk: ${f.get('title')}`,pname);window.__pdTab='risks';renderWorkspace()}
+function updateRiskStatus(id,status){let r=risks.find(x=>x.id==id);r.status=status;if(sb)sb.from('risks').update({status}).eq('id',id).then(({error})=>{if(error)console.error('Failed to update risk:',error)});logActivity(`${currentUser} set risk "${r.title}" to ${status}`,r.project);window.__pdTab='risks';renderWorkspace()}
+function addDecision(e,pname){e.preventDefault();let f=new FormData(e.target);let d={id:uid('DEC'),project:pname,title:f.get('title'),decision:f.get('decision'),date:iso(TODAY),owner:currentUser};decisions.unshift(d);if(sb)sb.from('decisions').insert(d).then(({error})=>{if(error)console.error('Failed to save decision:',error)});logActivity(`${currentUser} logged decision: ${f.get('title')}`,pname);window.__pdTab='decisions';renderWorkspace()}
+function addChangeRequest(e,pname){e.preventDefault();let f=new FormData(e.target);let c={id:uid('CR'),project:pname,title:f.get('title'),status:'Proposed',requestedBy:currentUser,date:iso(TODAY),impact:f.get('impact')||'TBD'};changeRequests.unshift(c);if(sb)sb.from('change_requests').insert({id:c.id,project:c.project,title:c.title,status:c.status,requested_by:c.requestedBy,date:c.date,impact:c.impact}).then(({error})=>{if(error)console.error('Failed to save change request:',error)});logActivity(`${currentUser} submitted change request: ${f.get('title')}`,pname);window.__pdTab='changes';renderWorkspace()}
+function updateChangeStatus(id,status){let c=changeRequests.find(x=>x.id==id);c.status=status;if(sb)sb.from('change_requests').update({status}).eq('id',id).then(({error})=>{if(error)console.error('Failed to update change request:',error)});logActivity(`${currentUser} set change request "${c.title}" to ${status}`,c.project);window.__pdTab='changes';renderWorkspace()}
 
 /* ---------- CRUD: projects ---------- */
 function openAddProject(){
@@ -1020,7 +1022,7 @@ async function changeProfileRole(id,role){
  if(currentRole!='Administrator')return denied();
  let{error}=await sb.from('profiles').update({role}).eq('id',id);
  if(error)return toast('Failed to update role: '+error.message);
- logActivity(`Changed a teammate's role to ${role}`,'Users & access');toast('Role updated');loadRealUsersTable();
+ logActivity(`${currentUser} changed a teammate's role to ${role}`,'Users & access');toast('Role updated');loadRealUsersTable();
 }
 async function editProfileName(id){
  if(currentRole!='Administrator'&&id!=authUser?.id)return denied();
@@ -1034,7 +1036,7 @@ async function saveProfileName(e,id){
  let{error}=await sb.from('profiles').update({full_name:f.get('name'),team:f.get('team')}).eq('id',id);
  if(error)return toast('Failed to save: '+error.message);
  if(id==authUser?.id){currentUser=f.get('name');document.getElementById('profileName').textContent=currentUser;document.getElementById('profileAvatar').textContent=initials(currentUser)}
- logActivity('Updated an account','Users & access');closeOverlay();loadRealUsersTable();
+ logActivity(`${currentUser} updated an account`,'Users & access');closeOverlay();loadRealUsersTable();
 }
 
 function closeOverlay(){veil.classList.remove('open');overlay.innerHTML=''}

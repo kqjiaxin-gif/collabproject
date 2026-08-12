@@ -560,7 +560,7 @@ function renderWorkspace(){
  if(!p){host.innerHTML='<div class="empty"><h2>No project selected</h2><p>Choose a project from the Projects page.</p></div>';return}
  if(!canSeeProject(p)){host.innerHTML='<div class="locked-card"><i class="ph-fill ph-lock-simple" style="font-size:28px;color:var(--n4)"></i><br>This project is confidential and not visible for the current role preview.</div>';return}
  window.__pdId=p.id;let tab=window.__pdTab||'overview';
- let pt=itemsForProject(p),canManage=currentRole=='Administrator'||currentRole=='Project Manager';
+ let pt=itemsForProject(p),canManage=currentRole=='Administrator'||currentRole=='Project Manager',canAddWork=canManage||currentRole=='Contributor';
  let tabs=['overview','work','milestones','risks','decisions','changes','activity'];
  let labels={overview:'Overview',work:'Work items',milestones:'Milestones',risks:'Risks & Issues',decisions:'Decisions',changes:'Change requests',activity:'Activity'};
  host.innerHTML=`<div class="head"><div><p class="eyebrow">${p.id} · ${esc(p.team)}</p><h1><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${p.color};margin-right:8px"></span>${esc(p.name)}${p.confidential?' <i class="ph-fill ph-lock-simple"></i>':''}</h1><p>${esc(p.objective)}</p></div><button class="btn light" onclick="goPage('projects')"><i class="ph ph-arrow-left"></i> Back to projects</button></div>
@@ -572,10 +572,10 @@ function renderWorkspace(){
  </div>
  <div class="tabs">${tabs.map(t=>`<button class="${t==tab?'active':''}" onclick="setPdTab('${t}')">${labels[t]}</button>`).join('')}</div>
  <div id="pdBody"></div>`;
- renderPdBody(p,pt,tab,canManage);
+ renderPdBody(p,pt,tab,canManage,canAddWork);
 }
 function setPdTab(t){window.__pdTab=t;renderWorkspace()}
-function renderPdBody(p,pt,tab,canManage){
+function renderPdBody(p,pt,tab,canManage,canAddWork){
  let el=document.getElementById('pdBody');
  if(tab=='overview'){
   el.innerHTML=`<div class="dash-grid">
@@ -590,7 +590,7 @@ function renderPdBody(p,pt,tab,canManage){
   <p class="sub" style="margin-top:14px">Related documents</p>${p.links.map(l=>`<span class="chip plain"><i class="ph ph-link"></i> ${esc(l.label)}</span>`).join('')||'<span class="chip plain">None linked</span>'}</div>
   </div>`;
  } else if(tab=='work'){
-  el.innerHTML=`<div class="filters" style="margin-bottom:12px"><button class="btn light sm" onclick="renderPdWorkBoard()"><i class="ph ph-kanban"></i> Board</button> <button class="btn light sm" onclick="renderPdWorkList()"><i class="ph ph-list-checks"></i> List</button> ${canManage?`<button class="btn sm" onclick="openQuickTask('${esc(p.name)}','Backlog')"><i class="ph ph-plus"></i> Add work item</button>`:''}</div><div id="pdWork"></div>`;
+  el.innerHTML=`<div class="filters" style="margin-bottom:12px"><button class="btn light sm" onclick="renderPdWorkBoard()"><i class="ph ph-kanban"></i> Board</button> <button class="btn light sm" onclick="renderPdWorkList()"><i class="ph ph-list-checks"></i> List</button> ${canAddWork?`<button class="btn sm" onclick="openQuickTask('${esc(p.name)}','Backlog')"><i class="ph ph-plus"></i> Add work item</button>`:''}</div><div id="pdWork"></div>`;
   renderPdWorkBoard();
  } else if(tab=='milestones'){
   el.innerHTML=`<div class="panel" style="padding:6px 0">${p.milestones.map(m=>`<div class="event"><span class="avatar">${m.done?'<i class="ph-fill ph-check-circle"></i>':'<i class="ph-fill ph-diamond"></i>'}</span><div>${canManage?`<b onclick="editMilestoneName('${p.id}','${m.id}')" style="cursor:pointer" title="Click to edit">${esc(m.name)}</b>`:`<b>${esc(m.name)}</b>`}<small>Due <span ${canManage?`onclick="editMilestoneDate('${p.id}','${m.id}')" style="cursor:pointer;text-decoration:underline dotted" title="Click to edit"`:''}>${fmtDate(m.due)}</span>${new Date(m.due+'T00:00:00')<TODAY&&!m.done?' · OVERDUE':''}</small></div><label class="chk"><input type="checkbox" ${m.done?'checked':''} ${canManage?'':'disabled'} onchange="toggleMilestone('${p.id}','${m.id}')"> Done</label>${canManage?`<button class="icon-action danger" onclick="removeMilestone('${p.id}','${m.id}')" title="Remove"><i class="ph ph-x"></i></button>`:''}</div>`).join('')||'<div class="empty">No milestones yet.</div>'}</div>
@@ -846,11 +846,11 @@ function renderUsers(){
  loadRealUsersTable();
 }
 function setAccessVisibility(){let accessNav=document.querySelector('.nav button[data-page="access"]');let isAdmin=currentRole=='Administrator';if(accessNav)accessNav.style.display=isAdmin?'':'none';if(!isAdmin&&document.getElementById('access')?.classList.contains('active'))goPage('portfolio')}
-function previewRole(role){currentRole=role;profileRole.textContent=role;addWorkBtn.classList.toggle('locked',!['Administrator','Project Manager'].includes(role));setAccessVisibility();render()}
+function previewRole(role){currentRole=role;profileRole.textContent=role;addWorkBtn.classList.toggle('locked',!['Administrator','Project Manager','Contributor'].includes(role));setAccessVisibility();render()}
 
 /* ---------- CRUD: items ---------- */
 function openAdd(defaultType){
- if(!['Administrator','Project Manager'].includes(currentRole))return denied();
+ if(!['Administrator','Project Manager','Contributor'].includes(currentRole))return denied();
  veil.classList.add('open');
  overlay.innerHTML=`<div class="modal"><button class="close" onclick="closeOverlay()"><i class="ph ph-x"></i></button><h2>Add work item</h2><form class="form" onsubmit="addItemSubmit(event)">
  <label>Work item name<input name="title" required autofocus placeholder="e.g. Finalise launch checklist"></label>
@@ -869,7 +869,7 @@ function addItemSubmit(e){
  logActivity('You created a work item',it.title);closeOverlay();render();
 }
 function openQuickTask(project,status){
- if(!['Administrator','Project Manager'].includes(currentRole))return denied();
+ if(!['Administrator','Project Manager','Contributor'].includes(currentRole))return denied();
  veil.classList.add('open');
  overlay.innerHTML=`<div class="modal"><button class="close" onclick="closeOverlay()"><i class="ph ph-x"></i></button><p class="eyebrow">${esc(project)} · ${status}</p><h2>Add work item</h2><form class="form" onsubmit="addQuickTask(event,'${esc(project)}','${status}')"><label>Work item name<input name="title" required autofocus></label><div class="formrow"><label>Assignee<select name="owner">${users.map(u=>`<option>${esc(u[0])}</option>`)}</select></label><label>Priority<select name="priority"><option>Medium</option><option>High</option><option>Critical</option><option>Low</option></select></label></div><label>Due date<input name="due" type="date"></label><div class="actions"><button type="button" class="btn light" onclick="closeOverlay()">Cancel</button><button class="btn">Add work item</button></div></form></div>`;
 }

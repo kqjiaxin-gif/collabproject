@@ -847,8 +847,36 @@ function renderUsers(){
  </div>
  <p style="margin:10px 0 0;font-size:11px;color:var(--n5)">Last synced: ${lastSync?fmtDate(lastSync.slice(0,10))+' '+new Date(lastSync).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'Never — add projects manually until this is wired up.'}</p>
  </div>
+ <div class="panel" style="padding:18px;margin-bottom:16px">
+ <h3 style="margin:0 0 4px;font:700 16px/20px 'Mulish',sans-serif;color:var(--n9)">Merge duplicate assignees</h3>
+ <p style="margin:0 0 14px;font-size:12px;color:var(--n5)">If the same person shows up under more than one name (e.g. "karen", "Karen", "Karen Quah"), fold their work items into a single name. This updates every affected work item and saves it.</p>
+ ${assigneeNameVariants().length>1?`<p style="margin:0 0 10px;font-size:12px;color:var(--n5)">Names currently in use: ${assigneeNameVariants().map(n=>`<span class="chip plain">${esc(n)}</span>`).join(' ')}</p>`:''}
+ <form class="form" onsubmit="mergeAssignees(event)" style="display:grid;gap:10px;grid-template-columns:2fr 1fr auto;align-items:end">
+  <label>Name(s) to merge from (comma-separated)<input name="aliases" required placeholder="karen, Karen"></label>
+  <label>Merge into<select name="canonical">${users.map(u=>`<option>${esc(u[0])}</option>`)}</select></label>
+  <button class="btn sm">Merge</button>
+ </form>
+ </div>
  <div class="panel access-wrap"><table class="access-table"><thead><tr><th>User</th><th>Team</th><th>Role</th><th>Project access</th><th>Status</th></tr></thead><tbody id="userRows"><tr><td colspan="5" class="empty">Loading accounts…</td></tr></tbody></table></div>`;
  loadRealUsersTable();
+}
+function assigneeNameVariants(){return[...new Set(items.map(t=>t.assignee).filter(Boolean))].sort()}
+async function mergeAssignees(e){
+ e.preventDefault();
+ if(currentRole!='Administrator')return denied();
+ let f=new FormData(e.target);
+ let aliases=String(f.get('aliases')||'').split(',').map(a=>a.trim().toLowerCase()).filter(Boolean);
+ let canonical=f.get('canonical');
+ if(!aliases.length||!canonical)return;
+ let changed=0;
+ items.forEach(t=>{
+  if(aliases.includes(String(t.assignee||'').toLowerCase())&&t.assignee!=canonical){
+   t.assignee=canonical;t.updatedAt=iso(TODAY);persistItem(t);changed++;
+  }
+ });
+ logActivity(`${currentUser} merged assignee alias(es) "${f.get('aliases')}" into "${canonical}" (${changed} item(s) updated)`,'Users & access');
+ toast(`Merged ${changed} item(s) into ${canonical}`);
+ render();renderUsers();
 }
 function setAccessVisibility(){let accessNav=document.querySelector('.nav button[data-page="access"]');let isAdmin=currentRole=='Administrator';if(accessNav)accessNav.style.display=isAdmin?'':'none';if(!isAdmin&&document.getElementById('access')?.classList.contains('active'))goPage('portfolio')}
 function previewRole(role){currentRole=role;profileRole.textContent=role;addWorkBtn.classList.toggle('locked',!['Administrator','Project Manager','Contributor'].includes(role));setAccessVisibility();render()}

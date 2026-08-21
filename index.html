@@ -204,6 +204,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 'Mulish',-appl
 <button data-page="list"><i class="ph-fill ph-list-checks"></i><span>Work items</span></button>
 <button data-page="calendar"><i class="ph-fill ph-calendar-blank"></i><span>Calendar</span></button>
 <button data-page="timeline"><i class="ph-fill ph-chart-line"></i><span>Timeline</span></button>
+<button data-page="forecast"><i class="ph-fill ph-calendar-check"></i><span>Deliverables</span></button>
 <button data-page="tasks"><i class="ph-fill ph-check-square"></i><span>My tasks</span></button>
 <button data-page="shared"><i class="ph-fill ph-share-network"></i><span>Shared features</span></button>
 <button data-page="activity"><i class="ph-fill ph-clock-counter-clockwise"></i><span>Activity log</span></button>
@@ -459,7 +460,7 @@ function filteredItems(){return items.filter(t=>t.linkedProjects.every(pn=>{let 
 function renderCurrentPage(){
  let active=document.querySelector('.page.active');
  let id=active?active.id:'portfolio';
- const map={portfolio:renderPortfolio,dashboard:renderDashboard,projects:renderProjectsGrid,workspace:renderWorkspace,board:renderBoard,list:renderList,calendar:renderCalendar,timeline:renderTimeline,tasks:renderMyTasks,shared:renderShared,activity:renderActivityLog,access:renderUsers};
+ const map={portfolio:renderPortfolio,dashboard:renderDashboard,projects:renderProjectsGrid,workspace:renderWorkspace,board:renderBoard,list:renderList,calendar:renderCalendar,timeline:renderTimeline,forecast:renderForecast,tasks:renderMyTasks,shared:renderShared,activity:renderActivityLog,access:renderUsers};
  if(map[id])map[id]();
 }
 
@@ -476,6 +477,7 @@ function buildPages(){
 <section class="page" id="list"></section>
 <section class="page" id="calendar"></section>
 <section class="page" id="timeline"></section>
+<section class="page" id="forecast"></section>
 <section class="page" id="tasks"></section>
 <section class="page" id="shared"></section>
 <section class="page" id="activity"></section>
@@ -746,6 +748,46 @@ function renderTimeline(){
  }).join('')}
  </div></div>
  <p style="font-size:11px;color:var(--muted);margin-top:14px"><i class="ph-fill ph-diamond"></i> diamond = milestone (green = done, amber = pending) &nbsp; | &nbsp; <span style="color:var(--red)">red line</span> = today</p>`;
+}
+
+/* ---------- Deliverables: 30/60/90 ---------- */
+function renderForecast(){
+ let host=document.getElementById('forecast');
+ let visible=projects.filter(canSeeProject);
+ host.innerHTML=`<div class="head"><div><p class="eyebrow">PLANNING</p><h1>Deliverables</h1><p>Open work items and pending milestones for every project, grouped by how soon they land.</p></div></div><div id="forecastBody"></div>`;
+ let today=iso(TODAY);
+ document.getElementById('forecastBody').innerHTML=visible.map(p=>{
+  let pt=itemsForProject(p);
+  let deliverables=[
+   ...pt.filter(t=>t.dueDate&&t.status!='Completed').map(t=>({title:t.title,due:t.dueDate,sub:t.type,priority:t.priority,blocked:isBlocked(t),onclick:`openDetail('${t.id}')`,milestone:false})),
+   ...p.milestones.filter(m=>!m.done&&m.due).map(m=>({title:m.name,due:m.due,sub:'Milestone',priority:'',blocked:false,onclick:`openProject('${p.id}')`,milestone:true}))
+  ];
+  deliverables.forEach(d=>d.days=daysBetween(today,d.due));
+  let buckets={overdue:[],d30:[],d60:[],d90:[],later:[]};
+  deliverables.forEach(d=>{
+   if(d.days<0)buckets.overdue.push(d);
+   else if(d.days<=30)buckets.d30.push(d);
+   else if(d.days<=60)buckets.d60.push(d);
+   else if(d.days<=90)buckets.d90.push(d);
+   else buckets.later.push(d);
+  });
+  Object.values(buckets).forEach(list=>list.sort((a,b)=>a.due.localeCompare(b.due)));
+  let cardFor=d=>`<article class="card ${d.blocked?'is-blocked':''}" onclick="${d.onclick}"><small>${d.milestone?'<i class="ph-fill ph-diamond"></i> Milestone':esc(d.sub)}</small><h3 style="margin:4px 0 6px;font-size:13px">${esc(d.title)}</h3><footer style="display:flex;align-items:center;justify-content:space-between">${d.priority?`<span class="priority ${cls(d.priority)}">${d.priority}</span>`:'<span></span>'}<small><i class="ph ph-clock"></i> ${fmtShort(d.due)}</small></footer></article>`;
+  let col=(label,list)=>`<section class="column"><header>${label} <em>${list.length}</em></header>${list.map(cardFor).join('')||'<p style="color:var(--muted);font-size:12px;padding:6px">Nothing due.</p>'}</section>`;
+  return `<div class="panel" style="padding:16px;margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer" onclick="openProject('${p.id}')">
+   <div class="picon" style="background:${p.color};width:30px;height:30px;font-size:12px">${initials(p.name)}</div>
+   <div><b style="font-size:14px">${esc(p.name)}${p.confidential?' <i class="ph-fill ph-lock-simple"></i>':''}</b><br><small style="color:var(--muted)">${p.id} · ${deliverables.length} upcoming deliverable(s)${buckets.overdue.length?` · <span style="color:var(--red)">${buckets.overdue.length} overdue</span>`:''}</small></div>
+  </div>
+  <div class="kanban">
+  ${buckets.overdue.length?col('Overdue',buckets.overdue):''}
+  ${col('Next 30 days',buckets.d30)}
+  ${col('31–60 days',buckets.d60)}
+  ${col('61–90 days',buckets.d90)}
+  </div>
+  ${buckets.later.length?`<p style="font-size:11px;color:var(--muted);margin-top:10px">${buckets.later.length} more due beyond 90 days</p>`:''}
+  </div>`;
+ }).join('')||'<div class="empty">No projects to show.</div>';
 }
 
 /* ---------- My tasks ---------- */

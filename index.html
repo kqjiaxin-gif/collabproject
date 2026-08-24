@@ -301,7 +301,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','
 function linkify(t){return esc(t).replace(/@(\w+)/g,'<span class="mention">@$1</span>')}
 
 const projects=[
-{id:'PRJ-024',name:'Collabrium Workspace',prefix:'COL',owner:'Wein Tan',team:'AI Platforms',category:'Internal Platform',objective:'Unify creative briefs, reviews and client delivery in one intelligent workspace.',description:'Collabrium consolidates brief intake, creative review cycles and client sign-off into a single AI-assisted workspace, replacing five disconnected tools.',status:'Active',priority:'Critical',plannedStart:'2026-04-01',plannedEnd:'2026-08-28',actualStart:'2026-04-06',actualEnd:'',progress:68,health:'At Risk',budget:280000,actualCost:214000,confidential:true,color:'#9F56FF',milestones:[{id:uid('M'),name:'Design system freeze',due:'2026-06-15',done:true},{id:uid('M'),name:'Client UAT sign-off',due:'2026-08-10',done:false},{id:uid('M'),name:'General availability',due:'2026-08-28',done:false}],dependencies:[],links:[{label:'Brief & scope doc',url:'#'},{label:'Design system',url:'#'}],createdAt:'2026-03-18',updatedAt:'2026-08-04'}
+{id:'PRJ-024',name:'Collabrium Workspace',prefix:'COL',owner:'Wein Tan',team:'AI Platforms',category:'Internal Platform',objective:'Unify creative briefs, reviews and client delivery in one intelligent workspace.',description:'Collabrium consolidates brief intake, creative review cycles and client sign-off into a single AI-assisted workspace, replacing five disconnected tools.',status:'Active',priority:'Critical',plannedStart:'2026-04-01',plannedEnd:'2026-08-28',actualStart:'2026-04-06',actualEnd:'',progress:68,health:'At Risk',budget:280000,actualCost:214000,confidential:true,color:'#9F56FF',milestones:[{id:uid('M'),name:'Design system freeze',due:'2026-06-15',done:true},{id:uid('M'),name:'Client UAT sign-off',due:'2026-08-10',done:false},{id:uid('M'),name:'General availability',due:'2026-08-28',done:false}],dependencies:[],links:[{label:'Brief & scope doc',url:'#'},{label:'Design system',url:'#'}],phases:[],createdAt:'2026-03-18',updatedAt:'2026-08-04'}
 ];
 
 let items=[];
@@ -328,8 +328,8 @@ function fmtActivityTime(iso){
 }
 
 /* ---------- Supabase persistence ---------- */
-function projectToRow(p){return{id:p.id,name:p.name,prefix:p.prefix,owner:p.owner,team:p.team,category:p.category,objective:p.objective,description:p.description,status:p.status,priority:p.priority,planned_start:p.plannedStart||null,planned_end:p.plannedEnd||null,actual_start:p.actualStart||null,actual_end:p.actualEnd||null,progress:p.progress,health:p.health,budget:p.budget,actual_cost:p.actualCost,confidential:p.confidential,color:p.color,milestones:p.milestones,dependencies:p.dependencies,links:p.links,created_by:p.createdBy||currentUser,updated_at:new Date().toISOString()}}
-function rowToProject(r){return{id:r.id,name:r.name,prefix:r.prefix,owner:r.owner,team:r.team,category:r.category,objective:r.objective,description:r.description,status:r.status,priority:r.priority,plannedStart:r.planned_start||'',plannedEnd:r.planned_end||'',actualStart:r.actual_start||'',actualEnd:r.actual_end||'',progress:r.progress||0,health:r.health,budget:Number(r.budget)||0,actualCost:Number(r.actual_cost)||0,confidential:!!r.confidential,color:r.color,milestones:r.milestones||[],dependencies:r.dependencies||[],links:r.links||[],createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at}}
+function projectToRow(p){return{id:p.id,name:p.name,prefix:p.prefix,owner:p.owner,team:p.team,category:p.category,objective:p.objective,description:p.description,status:p.status,priority:p.priority,planned_start:p.plannedStart||null,planned_end:p.plannedEnd||null,actual_start:p.actualStart||null,actual_end:p.actualEnd||null,progress:p.progress,health:p.health,budget:p.budget,actual_cost:p.actualCost,confidential:p.confidential,color:p.color,milestones:p.milestones,dependencies:p.dependencies,links:p.links,phases:p.phases||[],created_by:p.createdBy||currentUser,updated_at:new Date().toISOString()}}
+function rowToProject(r){return{id:r.id,name:r.name,prefix:r.prefix,owner:r.owner,team:r.team,category:r.category,objective:r.objective,description:r.description,status:r.status,priority:r.priority,plannedStart:r.planned_start||'',plannedEnd:r.planned_end||'',actualStart:r.actual_start||'',actualEnd:r.actual_end||'',progress:r.progress||0,health:r.health,budget:Number(r.budget)||0,actualCost:Number(r.actual_cost)||0,confidential:!!r.confidential,color:r.color,milestones:r.milestones||[],dependencies:r.dependencies||[],links:r.links||[],phases:r.phases||[],createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at}}
 function itemToRow(t){return{id:t.id,title:t.title,description:t.description,type:t.type,linked_projects:t.linkedProjects,assignee:t.assignee,status:t.status,priority:t.priority,start_date:t.startDate||null,due_date:t.dueDate||null,actual_completion:t.actualCompletion||null,progress:t.progress,est_effort:t.estEffort,actual_effort:t.actualEffort,dependencies:t.dependencies,blockers:t.blockers,tags:t.tags,attachments:t.attachments,comments:t.comments,subtasks:t.subtasks,approval_status:t.approvalStatus,created_by:t.createdBy,updated_at:new Date().toISOString()}}
 function rowToItem(r){return{id:r.id,title:r.title,description:r.description,type:r.type,linkedProjects:r.linked_projects||[],assignee:r.assignee,status:r.status,priority:r.priority,startDate:r.start_date||'',dueDate:r.due_date||'',actualCompletion:r.actual_completion||'',progress:r.progress||0,estEffort:Number(r.est_effort)||0,actualEffort:Number(r.actual_effort)||0,dependencies:r.dependencies||[],blockers:r.blockers||[],tags:r.tags||[],attachments:r.attachments||[],comments:r.comments||[],subtasks:r.subtasks||[],approvalStatus:r.approval_status,createdBy:r.created_by,createdAt:r.created_at,updatedAt:r.updated_at}}
 function persistItem(t){if(!sb)return;sb.from('work_items').update(itemToRow(t)).eq('id',t.id).then(({error})=>{if(error){console.error('Failed to save item:',error);toast('Could not save: '+error.message)}})}
@@ -366,7 +366,7 @@ function seedIdCounters(){
   let prefix=m[1],num=Number(m[2]);
   if(!idCounters[prefix]||num>idCounters[prefix])idCounters[prefix]=num;
  }
- projects.forEach(p=>{bump(p.id);(p.milestones||[]).forEach(m=>bump(m.id))});
+ projects.forEach(p=>{bump(p.id);(p.milestones||[]).forEach(m=>bump(m.id));(p.phases||[]).forEach(ph=>{bump(ph.id);(ph.items||[]).forEach(li=>bump(li.id))})});
  items.forEach(t=>{bump(t.id);(t.comments||[]).forEach(c=>bump(c.id))});
  risks.forEach(r=>bump(r.id));
  decisions.forEach(d=>bump(d.id));
@@ -577,8 +577,8 @@ function renderWorkspace(){
  if(!canSeeProject(p)){host.innerHTML='<div class="locked-card"><i class="ph-fill ph-lock-simple" style="font-size:28px;color:var(--n4)"></i><br>This project is confidential and not visible for the current role preview.</div>';return}
  window.__pdId=p.id;let tab=window.__pdTab||'overview';
  let pt=itemsForProject(p),canManage=currentRole=='Administrator'||currentRole=='Project Manager',canAddWork=canManage||currentRole=='Contributor';
- let tabs=['overview','work','milestones','risks','decisions','changes','activity'];
- let labels={overview:'Overview',work:'Work items',milestones:'Milestones',risks:'Risks & Issues',decisions:'Decisions',changes:'Change requests',activity:'Activity'};
+ let tabs=['overview','roadmap','work','milestones','risks','decisions','changes','activity'];
+ let labels={overview:'Overview',roadmap:'Delivery plan',work:'Work items',milestones:'Milestones',risks:'Risks & Issues',decisions:'Decisions',changes:'Change requests',activity:'Activity'};
  host.innerHTML=`<div class="head"><div><p class="eyebrow">${p.id} · ${esc(p.team)}</p><h1><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${p.color};margin-right:8px"></span>${esc(p.name)}${p.confidential?' <i class="ph-fill ph-lock-simple"></i>':''}</h1><p>${esc(p.objective)}</p></div><button class="btn light" onclick="goPage('projects')"><i class="ph ph-arrow-left"></i> Back to projects</button></div>
  <div class="stats">
   <article class="stat"><small>Progress</small><b>${p.progress}%</b></article>
@@ -605,6 +605,8 @@ function renderPdBody(p,pt,tab,canManage,canAddWork){
   <p class="sub">Depends on</p>${p.dependencies.map(d=>`<span class="chip" onclick="openProject('${d}')">${esc(projects.find(x=>x.id==d)?.name||d)}</span>`).join('')||'<span class="chip plain">None</span>'}
   <p class="sub" style="margin-top:14px">Related documents</p>${p.links.map(l=>`<span class="chip plain"><i class="ph ph-link"></i> ${esc(l.label)}</span>`).join('')||'<span class="chip plain">None linked</span>'}</div>
   </div>`;
+ } else if(tab=='roadmap'){
+  el.innerHTML=renderRoadmapTab(p,pt,canManage);
  } else if(tab=='work'){
   el.innerHTML=`<div class="filters" style="margin-bottom:12px"><button class="btn light sm" onclick="renderPdWorkBoard()"><i class="ph ph-kanban"></i> Board</button> <button class="btn light sm" onclick="renderPdWorkList()"><i class="ph ph-list-checks"></i> List</button> ${canAddWork?`<button class="btn sm" onclick="openQuickTask('${esc(p.name)}','Backlog')"><i class="ph ph-plus"></i> Add work item</button>`:''}</div><div id="pdWork"></div>`;
   renderPdWorkBoard();
@@ -631,6 +633,42 @@ function decisionForm(pname){return `<div class="panel" style="padding:16px;marg
 function changeForm(pname){return `<div class="panel" style="padding:16px;margin-top:12px"><form class="form" onsubmit="addChangeRequest(event,'${esc(pname)}')" style="display:grid;gap:10px;grid-template-columns:2fr 1fr auto;align-items:end"><label>Change request<input name="title" required></label><label>Impact<input name="impact" placeholder="e.g. +3 days"></label><button class="btn sm">Submit</button></form></div>`}
 function renderPdWorkBoard(){let p=projects.find(x=>x.id==window.__pdId);let pt=itemsForProject(p);let cols=['Backlog','Planned','In Progress','Under Review','Blocked','Completed','On Hold'];document.getElementById('pdWork').innerHTML=`<div class="kanban">${cols.map(c=>`<section class="column" ondragover="event.preventDefault()" ondrop="dropStatus(event,'${c}')"><header>${c} <em>${pt.filter(t=>t.status==c).length}</em></header>${pt.filter(t=>t.status==c).map(card).join('')}</section>`).join('')}</div>`}
 function renderPdWorkList(){let p=projects.find(x=>x.id==window.__pdId);let pt=itemsForProject(p);document.getElementById('pdWork').innerHTML=listTable(pt,false)}
+
+/* ---------- Delivery plan (phases + deliverables mapped to work items) ---------- */
+const PHASE_COLORS={'0–30 days':['rgba(0,194,110,.12)','#00854c'],'30–60 days':['rgba(20,115,230,.10)','#1473E6'],'60–90 days':['rgba(255,164,37,.14)','#9a5c00'],'Beyond':['var(--n2)','var(--n5)']};
+function renderRoadmapTab(p,pt,canManage){
+ let phases=p.phases||[];
+ let body=phases.length?phases.map(ph=>{
+  let[bg,fg]=PHASE_COLORS[ph.label]||['var(--n2)','var(--n5)'];
+  return `<div class="panel" style="padding:18px;margin-bottom:14px">
+  <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap">
+   <div style="min-width:104px">
+    ${canManage?`<select onchange="setPhaseLabel('${p.id}','${ph.id}',this.value)" style="height:26px;border:1px solid transparent;border-radius:var(--radius-pill);padding:0 10px;font:700 11px 'Mulish',sans-serif;background:${bg};color:${fg}">${Object.keys(PHASE_COLORS).map(l=>`<option ${l==ph.label?'selected':''}>${l}</option>`).join('')}</select>`
+    :`<span style="display:inline-flex;height:26px;align-items:center;border-radius:var(--radius-pill);padding:0 10px;font:700 11px 'Mulish',sans-serif;background:${bg};color:${fg}">${esc(ph.label)}</span>`}
+   </div>
+   <div style="flex:1;min-width:220px">
+    ${canManage?`<h3 onclick="editPhaseTitle('${p.id}','${ph.id}')" style="margin:0 0 10px;cursor:pointer;font:800 17px/22px 'Mulish',sans-serif;color:var(--n9)" title="Click to edit">${esc(ph.title)}</h3>`:`<h3 style="margin:0 0 10px;font:800 17px/22px 'Mulish',sans-serif;color:var(--n9)">${esc(ph.title)}</h3>`}
+    ${(ph.items||[]).map(li=>{
+     let linked=(li.workItemIds||[]).map(id=>pt.find(t=>t.id==id)).filter(Boolean);
+     return `<div style="margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+       <span style="color:var(--n4);margin-top:1px">—</span>
+       ${canManage?`<span onclick="editLineItem('${p.id}','${ph.id}','${li.id}')" style="flex:1;cursor:pointer;font-size:13px;color:var(--n7)" title="Click to edit">${esc(li.text)}</span><i class="ph ph-x" onclick="removeLineItem('${p.id}','${ph.id}','${li.id}')" style="cursor:pointer;color:var(--n5);margin-top:2px" title="Remove"></i>`:`<span style="flex:1;font-size:13px;color:var(--n7)">${esc(li.text)}</span>`}
+      </div>
+      <div style="margin-left:18px;margin-top:5px;display:flex;flex-wrap:wrap;gap:5px;align-items:center">
+       ${linked.map(t=>`<span class="chip plain" style="cursor:pointer;display:inline-flex;align-items:center;gap:5px" onclick="openDetail('${t.id}')"><i class="ph-fill ph-circle" style="font-size:8px;color:${statusColor(t.status)}"></i> ${esc(t.title)}${canManage?` <i class="ph ph-x" onclick="event.stopPropagation();unlinkWorkItem('${p.id}','${ph.id}','${li.id}','${t.id}')" title="Unlink"></i>`:''}</span>`).join('')}
+       ${canManage?`<button class="icon-action" style="height:22px;padding:0 8px;font-size:10px" onclick="openLinkWorkItem('${p.id}','${ph.id}','${li.id}')"><i class="ph ph-link"></i> Link work item</button>`:''}
+      </div>
+     </div>`;
+    }).join('')||'<p style="font-size:12px;color:var(--muted);margin:0 0 8px">No deliverables listed yet.</p>'}
+    ${canManage?`<input placeholder="Add a deliverable line and press Enter" style="width:100%;height:34px;border:1px solid #ddd;border-radius:7px;padding:0 8px;margin-top:4px" onkeydown="if(event.key=='Enter'){addLineItem('${p.id}','${ph.id}',this.value);this.value=''}">`:''}
+   </div>
+   ${canManage?`<button class="icon-action danger" onclick="removePhase('${p.id}','${ph.id}')" title="Remove phase"><i class="ph ph-trash"></i></button>`:''}
+  </div>
+  </div>`;
+ }).join(''):'<div class="empty">No delivery plan yet. Add phases below to lay out what ships when.</div>';
+ return body+(canManage?`<div class="panel" style="padding:16px"><form class="form" onsubmit="addPhase(event,'${p.id}')" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap"><label style="min-width:140px">Phase<select name="label">${Object.keys(PHASE_COLORS).map(l=>`<option>${l}</option>`).join('')}</select></label><label style="flex:1;min-width:220px">Headline deliverable<input name="title" required placeholder="e.g. Go live 1 Sept — campaign builder, centralised data, AI"></label><button class="btn sm"><i class="ph ph-plus"></i> Add phase</button></form></div>`:'');
+}
 
 /* ---------- Kanban board (global) ---------- */
 function renderBoard(){
@@ -1036,6 +1074,36 @@ function addMilestone(e,pid){e.preventDefault();let f=new FormData(e.target);let
 function removeMilestone(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let idx=p.milestones.findIndex(x=>x.id==mid);if(idx<0)return;let removed=p.milestones.splice(idx,1)[0];persistProject(p);logActivity(`${currentUser} removed milestone: ${removed.name}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
 function editMilestoneName(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit milestone name',m.name);if(val==null||!val.trim())return;let before=m.name;m.name=val.trim();persistProject(p);logActivity(`${currentUser} renamed milestone: "${before}" → "${val.trim()}"`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
 function editMilestoneDate(pid,mid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let m=p.milestones.find(x=>x.id==mid);let val=prompt('Edit due date (YYYY-MM-DD)',m.due);if(val==null)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(val.trim()))return toast('Enter a date as YYYY-MM-DD');let before=m.due;m.due=val.trim();persistProject(p);logActivity(`${currentUser} changed milestone "${m.name}" due date: ${fmtShort(before)} → ${fmtShort(val.trim())}`,p.name);render();window.__pdTab='milestones';renderWorkspace()}
+
+/* ---------- CRUD: delivery plan phases ---------- */
+function addPhase(e,pid){e.preventDefault();if(!['Administrator','Project Manager'].includes(currentRole))return denied();let f=new FormData(e.target);let p=projects.find(x=>x.id==pid);p.phases=p.phases||[];p.phases.push({id:uid('PH'),label:f.get('label'),title:f.get('title'),items:[]});persistProject(p);logActivity(`${currentUser} added delivery phase "${f.get('title')}"`,p.name);window.__pdTab='roadmap';renderWorkspace()}
+function removePhase(pid,phid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let idx=(p.phases||[]).findIndex(x=>x.id==phid);if(idx<0)return;let removed=p.phases.splice(idx,1)[0];persistProject(p);logActivity(`${currentUser} removed delivery phase: ${removed.title}`,p.name);window.__pdTab='roadmap';renderWorkspace()}
+function setPhaseLabel(pid,phid,label){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let ph=(p.phases||[]).find(x=>x.id==phid);if(!ph)return;ph.label=label;persistProject(p);logActivity(`${currentUser} relabelled phase "${ph.title}" to ${label}`,p.name);window.__pdTab='roadmap';renderWorkspace()}
+function editPhaseTitle(pid,phid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let ph=(p.phases||[]).find(x=>x.id==phid);if(!ph)return;let val=prompt('Edit phase headline',ph.title);if(val==null||!val.trim())return;let before=ph.title;ph.title=val.trim();persistProject(p);logActivity(`${currentUser} renamed phase: "${before}" → "${val.trim()}"`,p.name);window.__pdTab='roadmap';renderWorkspace()}
+function addLineItem(pid,phid,text){if(!text.trim())return;if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let ph=(p.phases||[]).find(x=>x.id==phid);if(!ph)return;ph.items=ph.items||[];ph.items.push({id:uid('LI'),text:text.trim(),workItemIds:[]});persistProject(p);logActivity(`${currentUser} added deliverable: ${text.trim()}`,p.name);window.__pdTab='roadmap';renderWorkspace()}
+function editLineItem(pid,phid,liid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let ph=(p.phases||[]).find(x=>x.id==phid);let li=(ph?.items||[]).find(x=>x.id==liid);if(!li)return;let val=prompt('Edit deliverable',li.text);if(val==null||!val.trim())return;let before=li.text;li.text=val.trim();persistProject(p);logActivity(`${currentUser} updated deliverable: "${before}" → "${val.trim()}"`,p.name);window.__pdTab='roadmap';renderWorkspace()}
+function removeLineItem(pid,phid,liid){if(!['Administrator','Project Manager'].includes(currentRole))return denied();let p=projects.find(x=>x.id==pid);let ph=(p.phases||[]).find(x=>x.id==phid);if(!ph)return;let idx=(ph.items||[]).findIndex(x=>x.id==liid);if(idx<0)return;let removed=ph.items.splice(idx,1)[0];persistProject(p);logActivity(`${currentUser} removed deliverable: ${removed.text}`,p.name);window.__pdTab='roadmap';renderWorkspace()}
+function openLinkWorkItem(pid,phid,liid){
+ if(!['Administrator','Project Manager'].includes(currentRole))return denied();
+ let p=projects.find(x=>x.id==pid);let pt=itemsForProject(p);let ph=(p.phases||[]).find(x=>x.id==phid);let li=(ph?.items||[]).find(x=>x.id==liid);if(!li)return;
+ let options=pt.filter(t=>!(li.workItemIds||[]).includes(t.id));
+ veil.classList.add('open');
+ overlay.innerHTML=`<div class="modal"><button class="close" onclick="closeOverlay()"><i class="ph ph-x"></i></button><p class="eyebrow">LINK WORK ITEM</p><h2>Link to "${esc(li.text)}"</h2>${options.length?`<form class="form" onsubmit="event.preventDefault();linkWorkItem('${pid}','${phid}','${liid}',this.item.value)"><label>Work item<select name="item">${options.map(t=>`<option value="${t.id}">${esc(t.title)} (${t.status})</option>`).join('')}</select></label><div class="actions"><button type="button" class="btn light" onclick="closeOverlay()">Cancel</button><button class="btn">Link</button></div></form>`:`<p style="color:#747b88">All of this project's work items are already linked to this deliverable, or there are none yet.</p><div class="actions"><button class="btn light" onclick="closeOverlay()">Close</button></div>`}</div>`;
+}
+function linkWorkItem(pid,phid,liid,itemId){
+ let p=projects.find(x=>x.id==pid);let ph=(p.phases||[]).find(x=>x.id==phid);let li=(ph?.items||[]).find(x=>x.id==liid);let t=items.find(x=>x.id==itemId);
+ if(!li||!t)return closeOverlay();
+ li.workItemIds=li.workItemIds||[];if(!li.workItemIds.includes(itemId))li.workItemIds.push(itemId);
+ persistProject(p);logActivity(`${currentUser} linked "${t.title}" to deliverable: ${li.text}`,p.name);
+ closeOverlay();window.__pdTab='roadmap';renderWorkspace();
+}
+function unlinkWorkItem(pid,phid,liid,itemId){
+ if(!['Administrator','Project Manager'].includes(currentRole))return denied();
+ let p=projects.find(x=>x.id==pid);let ph=(p.phases||[]).find(x=>x.id==phid);let li=(ph?.items||[]).find(x=>x.id==liid);if(!li)return;
+ li.workItemIds=(li.workItemIds||[]).filter(id=>id!=itemId);
+ persistProject(p);logActivity(`${currentUser} unlinked a work item from deliverable: ${li.text}`,p.name);
+ window.__pdTab='roadmap';renderWorkspace();
+}
 function addRisk(e,pname){e.preventDefault();let f=new FormData(e.target);let r={id:uid('RSK'),project:pname,title:f.get('title'),severity:f.get('severity'),status:'Open',owner:f.get('owner'),date:iso(TODAY),notes:''};risks.unshift(r);if(sb)sb.from('risks').insert(r).then(({error})=>{if(error)console.error('Failed to save risk:',error)});logActivity(`${currentUser} logged risk: ${f.get('title')}`,pname);window.__pdTab='risks';renderWorkspace()}
 function updateRiskStatus(id,status){let r=risks.find(x=>x.id==id);r.status=status;if(sb)sb.from('risks').update({status}).eq('id',id).then(({error})=>{if(error)console.error('Failed to update risk:',error)});logActivity(`${currentUser} set risk "${r.title}" to ${status}`,r.project);window.__pdTab='risks';renderWorkspace()}
 function addDecision(e,pname){e.preventDefault();let f=new FormData(e.target);let d={id:uid('DEC'),project:pname,title:f.get('title'),decision:f.get('decision'),date:iso(TODAY),owner:currentUser};decisions.unshift(d);if(sb)sb.from('decisions').insert(d).then(({error})=>{if(error)console.error('Failed to save decision:',error)});logActivity(`${currentUser} logged decision: ${f.get('title')}`,pname);window.__pdTab='decisions';renderWorkspace()}
@@ -1057,7 +1125,7 @@ function openAddProject(){
 }
 function addProject(e){
  e.preventDefault();let f=new FormData(e.target),name=String(f.get('name')).trim();
- let p={id:uid('PRJ'),name,prefix:projectPrefix(name),owner:f.get('owner'),team:f.get('team'),category:'General',objective:f.get('objective'),description:f.get('objective'),status:'Active',priority:f.get('priority'),plannedStart:f.get('start'),plannedEnd:f.get('due'),actualStart:f.get('start'),actualEnd:'',progress:0,health:'On Track',budget:Number(f.get('budget'))||0,actualCost:0,confidential:f.get('confidential')=='on',color:['#397dcc','#8a5bd8','#159b82','#dc6b43'][projects.length%4],milestones:[],dependencies:[],links:[],createdBy:currentUser,createdAt:iso(TODAY),updatedAt:iso(TODAY)};
+ let p={id:uid('PRJ'),name,prefix:projectPrefix(name),owner:f.get('owner'),team:f.get('team'),category:'General',objective:f.get('objective'),description:f.get('objective'),status:'Active',priority:f.get('priority'),plannedStart:f.get('start'),plannedEnd:f.get('due'),actualStart:f.get('start'),actualEnd:'',progress:0,health:'On Track',budget:Number(f.get('budget'))||0,actualCost:0,confidential:f.get('confidential')=='on',color:['#397dcc','#8a5bd8','#159b82','#dc6b43'][projects.length%4],milestones:[],dependencies:[],links:[],phases:[],createdBy:currentUser,createdAt:iso(TODAY),updatedAt:iso(TODAY)};
  projects.push(p);
  if(sb)sb.from('projects').insert(projectToRow(p)).then(({error})=>{if(error){console.error('Failed to save project:',error);toast('Could not save project: '+error.message)}});
  logActivity(`${currentUser} created project ${name}`,'Projects');closeOverlay();render();
